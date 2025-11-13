@@ -1,7 +1,7 @@
 <template>
   <div class="dtu-config-container">
     <div class="header">
-      <h2 class="title">DTU 配置 - {{ deviceId }}</h2>
+      <h2 class="title">DTU 配置 - {{ device?.id }}</h2>
       <div class="actions">
         <el-button class="action-btn" type="default" @click="goBack">
           <el-icon><ArrowLeft /></el-icon>
@@ -39,8 +39,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, DocumentAdd } from '@element-plus/icons-vue'
 
@@ -50,12 +50,13 @@ import InterfaceConfig from './dtu/InterfaceConfig.vue'
 import ModbusConfig from './dtu/ModbusConfig.vue'
 import SceneConfig from './dtu/SceneConfig.vue'
 
-const route = useRoute()
+const props = defineProps<{ device: any }>()
+const device = ref(props.device)
+console.log('[DEBUG] 接收到 props.device:', device.value)
+
 const router = useRouter()
-const deviceId = route.params.deviceId as string
 const activeTab = ref('basic')
 
-// 父组件集中管理所有配置数据
 const allConfig = reactive({
   basic: {},
   interface: {},
@@ -64,35 +65,123 @@ const allConfig = reactive({
   scene: {}
 })
 
-// 模拟加载设备配置（从服务器读取）
-onMounted(async () => {
-  // TODO: 调用后端接口加载配置
-  // const resp = await api.get(`/device/${deviceId}/config`)
-  // Object.assign(allConfig, resp.data)
-  console.log('读取设备配置并回显...')
+// 读取设备配置
+const loadDeviceConfig = async () => {
+  if (!device.value) {
+    console.warn('[WARN] device 对象为空，无法读取配置')
+    return
+  }
+
+  console.log(`[INFO] 开始读取设备配置, deviceId=${device.value.id}`)
+
+  try {
+    const config = await window.electronAPI.readDeviceConfig(JSON.parse(JSON.stringify(device.value)))
+    if (config) {
+      Object.assign(allConfig, config)
+      console.log(`[SUCCESS] 设备配置加载完成:`, config)
+    } else {
+      console.warn(`[WARN] 设备 ${device.value.id} 返回空配置`)
+    }
+  } catch (err) {
+    console.error(`[ERROR] 读取设备配置失败:`, err)
+    ElMessage.error('读取设备配置失败: ' + err)
+  }
+}
+
+onMounted(() => {
+  console.log('[INFO] DtuConfig mounted, 开始 loadDeviceConfig')
+  loadDeviceConfig()
+
+  // 监听菜单栏保存事件
+  window.electronAPI.on('menu-action', (action: string) => {
+    console.log('[DEBUG] 收到菜单操作:', action)
+    if (action === 'save') saveConfig()
+  })
 })
 
+onBeforeUnmount(() => {
+  console.log('[INFO] DtuConfig before unmount, 移除菜单事件监听')
+  window.electronAPI.off('menu-action', () => {})
+})
+
+// 返回
 const goBack = () => {
+  console.log('[INFO] 点击返回按钮')
   router.push({ name: 'DeviceList' })
 }
 
-// 点击保存时汇总所有页面的数据
+
+
+// 保存配置
 const saveConfig = async () => {
+  if (!device.value) {
+    console.warn('[WARN] device 为空，无法保存配置')
+    return
+  }
+
   try {
-    console.log('保存配置内容：', JSON.stringify(allConfig, null, 2))
-    // await api.post(`/device/${deviceId}/config`, allConfig)
-    ElMessage.success('配置已保存')
-  } catch (err) {
-    ElMessage.error('保存失败: ' + err)
+    // 深拷贝 reactive 对象，防止 "object could not be cloned"
+    const configCopy = JSON.parse(JSON.stringify(allConfig))
+
+    // 构造 payload 按 WT32 接收格式
+    const payload = {
+      [device.value.id]: {
+        type: 'config',
+        heart_interval: configCopy.basic.interval || 5,
+        network: configCopy.network || {},
+        channels: [
+          {
+            enabled: configCopy.interface.enabled || false,
+            protocol: configCopy.interface.protocol || '',
+            target: configCopy.interface.target || '',
+            port: configCopy.interface.port || 0
+          },
+          {
+            enabled: configCopy.modbus.enabled || false,
+            protocol: configCopy.modbus.protocol || '',
+            target: configCopy.modbus.target || '',
+            port: configCopy.modbus.port || 0
+          },
+          {
+            enabled: configCopy.scene.enabled || false,
+            protocol: configCopy.scene.protocol || '',
+            target: configCopy.scene.target || '',
+            port: configCopy.scene.port || 0
+          }
+        ]
+      }
+    }
+
+    console.log('[SAVE] Config payload:', payload)
+
+    // 调用主进程保存
+    const result = await window.electronAPI.saveConfig(payload)
+
+    if (result.success) {
+      console.log('[SUCCESS] 配置已保存到设备')
+      ElMessage.success('配置已保存到设备')
+    } else {
+      console.error('[ERROR] 保存失败:', result.error)
+      ElMessage.error('保存失败：' + result.error)
+    }
+  } catch (err: any) {
+    console.error('[ERROR] 保存异常:', err)
+    ElMessage.error('保存异常: ' + (err.message || err))
   }
 }
+
+
+
+
+
+
 </script>
 
 <style scoped>
 .dtu-config-container {
   height: 100vh;
   padding: 20px;
-  background-color: #ffffff;
+  background: #fff;
   display: flex;
   flex-direction: column;
 }
@@ -164,9 +253,9 @@ const saveConfig = async () => {
 .tabs-underline ::v-deep(.el-tabs__content) {
   flex: 1;
   padding: 15px;
-  background-color: #ffffff;
+  background-color: #fff;
   border-radius: 0 0 8px 8px;
-  box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.03);
+  box-shadow: inset 0 0 6px rgba(0,0,0,0.03);
   height: calc(100vh - 120px);
   overflow-y: auto;
 }

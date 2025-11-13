@@ -1,4 +1,4 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
+import {createRouter, createWebHashHistory, RouteLocationNormalized} from 'vue-router'
 import LogView from './views/LogView.vue'
 import DtuConfig from './views/DtuConfig.vue'
 import ResourceMonitor from './views/ResourceMonitor.vue'
@@ -7,22 +7,28 @@ import DeviceList from './views/DeviceList.vue'
 const routes = [
     { path: '/', redirect: '/devices' },
     { path: '/devices', name: 'DeviceList', component: DeviceList },
-    { path: '/config/:deviceId', name: 'DtuConfig', component: DtuConfig, props: true },
-    { path: '/log', component: LogView },
     {
-        path: '/dtu',
+        path: '/config',
+        name: 'DtuConfig',
         component: DtuConfig,
-        children: [
-
-        ],
+        props: (route: RouteLocationNormalized) => {
+            if (route.query.device) {
+                try {
+                    return { device: JSON.parse(route.query.device as string) }
+                } catch {
+                    return { device: null }
+                }
+            }
+            return { device: null }
+        }
     },
+    { path: '/log', component: LogView },
     { path: '/resource', component: ResourceMonitor },
-    { path: '/', redirect: '/log' },
 ]
 
 const router = createRouter({
     history: createWebHashHistory(),
-    routes,
+    routes
 })
 
 export default router

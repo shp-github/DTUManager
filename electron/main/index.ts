@@ -1,8 +1,9 @@
-import { app, BrowserWindow, shell, ipcMain, Menu } from 'electron'
+import { app, BrowserWindow, shell, ipcMain, Menu,globalShortcut  } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
-import path from 'node:path'
+import path from 'path'
 import os from 'os'
+import dgram from 'dgram'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -16,7 +17,7 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
     ? path.join(process.env.APP_ROOT, 'public')
     : RENDERER_DIST
 
-// Windows 7 GPU加速禁用
+// Windows 7 GPU 加速禁用
 if (os.release().startsWith('6.1')) app.disableHardwareAcceleration()
 
 // Windows 10+ 通知图标
@@ -31,12 +32,15 @@ let win: BrowserWindow | null = null
 const preload = path.join(__dirname, '../preload/index.mjs')
 const indexHtml = path.join(RENDERER_DIST, 'index.html')
 
+import type { MenuItemConstructorOptions } from 'electron'
+
+// ----------------- 创建主窗口 -----------------
 function createWindow() {
     win = new BrowserWindow({
         width: 1200,
         height: 800,
         title: 'DTU 上位机配置',
-        icon: path.join(process.env.VITE_PUBLIC, 'favicon.ico'),
+        icon: process.env.VITE_PUBLIC ? path.join(process.env.VITE_PUBLIC, 'favicon.ico') : undefined,
         webPreferences: {
             preload,
             nodeIntegration: false,
@@ -53,19 +57,17 @@ function createWindow() {
 
     win.maximize()
 
-    // 所有外部链接用浏览器打开
     win.webContents.setWindowOpenHandler(({ url }) => {
         if (url.startsWith('https:')) shell.openExternal(url)
         return { action: 'deny' }
     })
 
-    // 发送示例消息到渲染进程
     win.webContents.on('did-finish-load', () => {
         win?.webContents.send('main-process-message', new Date().toLocaleString())
     })
 
-    // 设置中文菜单
-    const menuTemplate = [
+    // 中文菜单
+    const menuTemplate: MenuItemConstructorOptions[] = [
         {
             label: '文件',
             submenu: [
@@ -114,6 +116,13 @@ app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
 })
 
+//快捷键打开控制台
+app.whenReady().then(() => {
+    globalShortcut.register('CommandOrControl+Shift+I', () => {
+        win?.webContents.openDevTools()
+    })
+})
+
 // 打开子窗口示例
 ipcMain.handle('open-win', (_, arg) => {
     const childWindow = new BrowserWindow({
@@ -131,4 +140,133 @@ ipcMain.handle('open-win', (_, arg) => {
     } else {
         childWindow.loadFile(indexHtml, { hash: arg })
     }
+})
+
+// =================== UDP 模块 ===================
+const UDP_DISCOVERY_PORT = 4210
+const UDP_CONFIG_PORT = 4211
+const devices = new Map<string, any>()
+
+const udpServer = dgram.createSocket('udp4')
+
+// 监听设备广播
+udpServer.on('message', (msg, rinfo) => {
+    try {
+        const payload = JSON.parse(msg.toString())
+        if (payload.type === 'discover') {
+            const id = payload.id || rinfo.address
+            devices.set(id, {
+                id,
+                ip: payload.ip || rinfo.address,
+                firmware: payload.firmware || '?',
+                heart_interval: payload.heart_interval || '?',
+                lastSeen: new Date().toLocaleTimeString()
+            })
+            console.log(`[DISCOVERY] Device found: ${id} @ ${rinfo.address}`)
+            win?.webContents.send('udp-device-discovered', Array.from(devices.values()))
+        }
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        console.warn('[WARNING] Failed to parse UDP message:', message)
+    }
+})
+
+udpServer.bind(UDP_DISCOVERY_PORT, () => {
+    console.log(`✅ Listening UDP discovery port ${UDP_DISCOVERY_PORT}`)
+})
+
+// 渲染进程获取设备列表
+ipcMain.handle('getDevices', async () => {
+    return Array.from(devices.values())
+})
+
+// 渲染进程发送配置命令
+ipcMain.handle('sendConfig', async (_event, { ip, config }) => {
+    const sock = dgram.createSocket('udp4')
+    const msg = Buffer.from(JSON.stringify({ type: 'config', ...(config || {}) }))
+    return new Promise((resolve, reject) => {
+        sock.send(msg, UDP_CONFIG_PORT, ip, err => {
+            sock.close()
+            if (err) reject(err)
+            else resolve('ok')
+        })
+    })
+})
+
+// 渲染进程调用：window.electronAPI.saveConfig(payload)
+ipcMain.handle('save-config', async (_event, payload) => {
+    try {
+        const entries = Object.entries(payload)
+        for (const [deviceId, config] of entries) {
+            const device = devices.get(deviceId)
+            if (device) {
+                const sock = dgram.createSocket('udp4')
+                const msg = Buffer.from(JSON.stringify({ type: 'config', ...(config || {}) }))
+                await new Promise<void>((resolve, reject) => {
+                    sock.send(msg, UDP_CONFIG_PORT, device.ip, (err) => {
+                        sock.close()
+                        if (err) reject(err)
+                        else resolve()
+                    })
+                })
+            }
+        }
+
+        return { success: true }
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        console.error('[SAVE] Error:', message)
+        return { success: false, error: message }
+    }
+})
+
+// =================== 优化后的读取设备配置 ===================
+ipcMain.handle('read-device-config', async (_event, device) => {
+    if (!device || !device.ip) {
+        throw new Error('Invalid device object')
+    }
+
+    const ip = device.ip
+    const sock = dgram.createSocket('udp4')
+    let closed = false
+    const closeSock = () => {
+        if (!closed) {
+            sock.close()
+            closed = true
+        }
+    }
+
+    const msg = Buffer.from(JSON.stringify({ type: 'read_config' }))
+
+    return new Promise((resolve, reject) => {
+        sock.send(msg, UDP_CONFIG_PORT, ip, (err) => {
+            if (err) {
+                closeSock()
+                return reject(err)
+            }
+        })
+
+        sock.on('message', (msg, rinfo) => {
+            try {
+                const payload = JSON.parse(msg.toString())
+                if (payload.type === 'config' && rinfo.address === ip) {
+                    closeSock()
+                    resolve(payload)
+                }
+            } catch (err) {
+                closeSock()
+                reject(err)
+            }
+        })
+
+        const timer = setTimeout(() => {
+            closeSock()
+            reject(new Error('Device read config timeout'))
+        }, 3000)
+
+        const originalResolve = resolve
+        const originalReject = reject
+        resolve = (val) => { clearTimeout(timer); originalResolve(val) }
+        reject = (err) => { clearTimeout(timer); originalReject(err) }
+    })
 })
