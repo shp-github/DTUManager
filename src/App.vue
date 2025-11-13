@@ -1,49 +1,40 @@
-<script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
-</script>
-
 <template>
-  <div>
-    <a href="https://www.electronjs.org/" target="_blank">
-      <img src="./assets/electron.svg" class="logo electron" alt="Electron logo" />
-    </a>
-    <a href="https://vitejs.dev/" target="_blank">
-      <img src="./assets/vite.svg" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://vuejs.org/" target="_blank">
-      <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
-    </a>
-  </div>
-  <HelloWorld msg="Electron + Vite + Vue" />
-  <div class="flex-center">
-    Place static files into the <code>/public</code> folder
-    <img style="width: 2.4em; margin-left: .4em;" src="/logo.svg" alt="Logo">
-  </div>
+  <el-container style="height: 100vh">
+    <!-- 左侧菜单 -->
+    <el-aside width="200px" style="background-color: #001529; color: #fff">
+      <el-menu
+          default-active="/log"
+          class="el-menu-vertical-demo"
+          background-color="#001529"
+          text-color="#fff"
+          active-text-color="#409EFF"
+          router
+      >
+        <el-menu-item index="/log">日志</el-menu-item>
+        <el-sub-menu index="/dtu">
+          <template #title>DTU 配置</template>
+          <el-menu-item index="/dtu/net">网络参数</el-menu-item>
+          <el-menu-item index="/dtu/serial">串口参数</el-menu-item>
+          <el-menu-item index="/dtu/modbus">Modbus 映射</el-menu-item>
+        </el-sub-menu>
+        <el-menu-item index="/resource">资源监控</el-menu-item>
+      </el-menu>
+    </el-aside>
+
+    <!-- 右侧内容 -->
+    <el-main style="padding: 20px; background-color: #f5f5f5">
+      <router-view />
+    </el-main>
+  </el-container>
 </template>
 
+<script setup lang="ts">
+// 这里暂时不需要额外逻辑
+</script>
+
 <style>
-.flex-center {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-
-.logo.electron:hover {
-  filter: drop-shadow(0 0 2em #9FEAF9);
-}
-
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #42b883aa);
+.el-menu-vertical-demo {
+  height: 100%;
+  border-right: 0;
 }
 </style>
