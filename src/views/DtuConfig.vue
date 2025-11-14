@@ -62,15 +62,7 @@ const activeTab = ref('basic')
 // 配置对象
 const allConfig = reactive({
   basic: {},
-  interface: [   // 数组
-    {
-      enabled: false,
-      mode: 'rs485',
-      baudRate: 9600,
-      dataBits: 8,
-      stopBits: 1,
-      parity: 'none'
-    }
+  interface: [
   ],
   network: {},
   modbus: {},
@@ -120,6 +112,9 @@ const saveConfig = async () => {
   if (!device.value) return
 
   try {
+
+    console.log('保存配置:',JSON.stringify(allConfig))
+
     const configCopy = JSON.parse(JSON.stringify(allConfig))
 
     const payload = {

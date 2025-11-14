@@ -17,6 +17,15 @@
 
     <!-- 设备表格 -->
     <el-table :data="filteredDevices" style="width:100%" stripe border>
+
+      <el-table-column label="操作" >
+        <template #default="{ row }">
+          <el-button type="primary" size="small" @click="goToConfig(row)">
+            设备管理
+          </el-button>
+        </template>
+      </el-table-column>
+
       <el-table-column prop="id" label="设备号" width="180" />
       <el-table-column prop="mac" label="MAC地址" width="180" />
       <el-table-column prop="ip" label="IP 地址" width="160" />
@@ -29,13 +38,7 @@
       </el-table-column>
       <el-table-column prop="firmware" label="固件版本" width="120" />
       <el-table-column prop="heart_interval" label="心跳(s)" width="140" />
-      <el-table-column label="操作" >
-        <template #default="{ row }">
-          <el-button type="primary" size="small" @click="goToConfig(row)">
-            设备管理
-          </el-button>
-        </template>
-      </el-table-column>
+
     </el-table>
   </div>
 </template>

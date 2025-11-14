@@ -75,19 +75,39 @@ interface Port {
 const props = defineProps<{ modelValue: Port[] }>()
 const emit = defineEmits(['update:modelValue'])
 
-// 初始化 ports，如果 modelValue 没有值，则默认生成两条串口
+// 初始化 ports，如果 modelValue 没有值，则默认生成两条串口，且默认启用状态为禁用
 const ports = reactive<Port[]>(props.modelValue.length ? props.modelValue : [
-  { name: '串口1', enabled: true, mode: 'rs485', baudRate: 9600, dataBits: 8, stopBits: 1, parity: 'none' },
+  { name: '串口1', enabled: false, mode: 'rs485', baudRate: 9600, dataBits: 8, stopBits: 1, parity: 'none' },
   { name: '串口2', enabled: false, mode: 'rs485', baudRate: 9600, dataBits: 8, stopBits: 1, parity: 'none' }
-])
+]);
 
+console.log('初始化串口配置:', ports); // 打印初始的 ports 数据
+console.log('接收到的初始化串口配置:', props.modelValue); // 打印接收到的 props 数据
 
 // 监听 ports 变化，回传给父组件
 watch(
     ports,
-    (newVal) => emit('update:modelValue', newVal),
+    (newVal) => {
+      console.log('串口配置已更新:', newVal); // 打印新的 ports 数据
+      emit('update:modelValue', newVal);
+    },
     { deep: true }
-)
+);
+
+// 开关状态变化时打印
+const handleSwitchChange = (port: Port) => {
+  console.log(`串口 "${port.name}" 的启用状态已更改为: ${port.enabled ? '启用' : '禁用'}`);
+}
+
+// 波特率变化时打印
+const handleBaudRateChange = (port: Port) => {
+  console.log(`串口 "${port.name}" 的波特率已更改为: ${port.baudRate}`);
+}
+
+// 提交数据时打印
+const handleSubmit = () => {
+  console.log('提交的串口配置数据:', ports);
+}
 </script>
 
 <style scoped>
