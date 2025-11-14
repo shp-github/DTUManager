@@ -15,8 +15,8 @@
     </div>
 
     <el-tabs v-model="activeTab" class="tabs-underline" type="card">
-      <el-tab-pane label="基本参数" name="basic">
-        <BasicConfig v-model="allConfig.basic" />
+      <el-tab-pane label="基本信息" name="basic">
+        <BasicConfig v-model="allConfig.basic" :device="device" />
       </el-tab-pane>
 
       <el-tab-pane label="接口" name="interface">
@@ -50,16 +50,28 @@ import InterfaceConfig from './dtu/InterfaceConfig.vue'
 import ModbusConfig from './dtu/ModbusConfig.vue'
 import SceneConfig from './dtu/SceneConfig.vue'
 
+// 接收 device 参数
 const props = defineProps<{ device: any }>()
 const device = ref(props.device)
+
 console.log('[DEBUG] 接收到 props.device:', device.value)
 
 const router = useRouter()
 const activeTab = ref('basic')
 
+// 配置对象
 const allConfig = reactive({
   basic: {},
-  interface: {},
+  interface: [   // 数组
+    {
+      enabled: false,
+      mode: 'rs485',
+      baudRate: 9600,
+      dataBits: 8,
+      stopBits: 1,
+      parity: 'none'
+    }
+  ],
   network: {},
   modbus: {},
   scene: {}
@@ -67,63 +79,49 @@ const allConfig = reactive({
 
 // 读取设备配置
 const loadDeviceConfig = async () => {
-  if (!device.value) {
-    console.warn('[WARN] device 对象为空，无法读取配置')
-    return
-  }
-
-  console.log(`[INFO] 开始读取设备配置, deviceId=${device.value.id}`)
+  if (!device.value) return
 
   try {
     const config = await window.electronAPI.readDeviceConfig(JSON.parse(JSON.stringify(device.value)))
-    if (config) {
-      Object.assign(allConfig, config)
-      console.log(`[SUCCESS] 设备配置加载完成:`, config)
-    } else {
-      console.warn(`[WARN] 设备 ${device.value.id} 返回空配置`)
-    }
+    if (config) Object.assign(allConfig, config)
   } catch (err) {
-    console.error(`[ERROR] 读取设备配置失败:`, err)
-    ElMessage.error('读取设备配置失败: ' + err)
+    console.error('[ERROR] 读取设备配置失败:', err)
+    ElMessage.error('读取设备配置失败')
   }
 }
 
+// 每秒更新运行时间
+let runtimeTimer: number
 onMounted(() => {
-  console.log('[INFO] DtuConfig mounted, 开始 loadDeviceConfig')
   loadDeviceConfig()
+
+  runtimeTimer = window.setInterval(() => {
+    if (device.value && device.value.runtime !== undefined) {
+      device.value.runtime += 1
+    }
+  }, 1000)
 
   // 监听菜单栏保存事件
   window.electronAPI.on('menu-action', (action: string) => {
-    console.log('[DEBUG] 收到菜单操作:', action)
     if (action === 'save') saveConfig()
   })
 })
 
 onBeforeUnmount(() => {
-  console.log('[INFO] DtuConfig before unmount, 移除菜单事件监听')
+  clearInterval(runtimeTimer)
   window.electronAPI.off('menu-action', () => {})
 })
 
 // 返回
-const goBack = () => {
-  console.log('[INFO] 点击返回按钮')
-  router.push({ name: 'DeviceList' })
-}
-
-
+const goBack = () => router.push({ name: 'DeviceList' })
 
 // 保存配置
 const saveConfig = async () => {
-  if (!device.value) {
-    console.warn('[WARN] device 为空，无法保存配置')
-    return
-  }
+  if (!device.value) return
 
   try {
-    // 深拷贝 reactive 对象，防止 "object could not be cloned"
     const configCopy = JSON.parse(JSON.stringify(allConfig))
 
-    // 构造 payload 按 WT32 接收格式
     const payload = {
       [device.value.id]: {
         type: 'config',
@@ -152,29 +150,17 @@ const saveConfig = async () => {
       }
     }
 
-    console.log('[SAVE] Config payload:', payload)
-
-    // 调用主进程保存
     const result = await window.electronAPI.saveConfig(payload)
 
     if (result.success) {
-      console.log('[SUCCESS] 配置已保存到设备')
       ElMessage.success('配置已保存到设备')
     } else {
-      console.error('[ERROR] 保存失败:', result.error)
       ElMessage.error('保存失败：' + result.error)
     }
   } catch (err: any) {
-    console.error('[ERROR] 保存异常:', err)
     ElMessage.error('保存异常: ' + (err.message || err))
   }
 }
-
-
-
-
-
-
 </script>
 
 <style scoped>

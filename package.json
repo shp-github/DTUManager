@@ -41,6 +41,7 @@
     "vue-tsc": "^2.0.6"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
     "element-plus": "^2.11.7",
     "vue-router": "^4.6.3"
   },
@@ -58,7 +59,10 @@
       "package.json"
     ],
     "win": {
-      "target": ["nsis", "zip"],
+      "target": [
+        "nsis",
+        "zip"
+      ],
       "icon": "public/favicon.ico",
       "certificateFile": "certs/cert.pfx",
       "certificatePassword": "2948299576"
