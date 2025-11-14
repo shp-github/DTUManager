@@ -11,7 +11,7 @@
           router
           @select="handleMenuSelect"
       >
-        <el-menu-item index="/dtu">DTU 配置</el-menu-item>
+        <el-menu-item index="/devices">设备列表</el-menu-item>
         <el-menu-item index="/resource">资源监控</el-menu-item>
         <el-menu-item index="/log">日志</el-menu-item>
 
@@ -47,7 +47,7 @@ watch(
 )
 </script>
 
-<style scoped>
+<style scoped>    
 .el-menu-vertical-demo {
   height: 100%;
   border-right: 0;

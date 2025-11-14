@@ -153,23 +153,39 @@ const udpServer = dgram.createSocket('udp4')
 udpServer.on('message', (msg, rinfo) => {
     try {
         const payload = JSON.parse(msg.toString())
+
         if (payload.type === 'discover') {
+
             const id = payload.id || rinfo.address
+
+            // 更新设备列表
             devices.set(id, {
                 id,
+                mac: payload.mac || "",
                 ip: payload.ip || rinfo.address,
-                firmware: payload.firmware || '?',
-                heart_interval: payload.heart_interval || '?',
+                networkType: payload.networkType || "UNKNOWN",
+                RSSI: payload.RSSI ?? null,
+                runtime: payload.runtime ?? 0,
+                firmware: payload.firmware || "?",
+                heart_interval: payload.heart_interval || "?",
                 lastSeen: new Date().toLocaleTimeString()
             })
+
             console.log(`[DISCOVERY] Device found: ${id} @ ${rinfo.address}`)
-            win?.webContents.send('udp-device-discovered', Array.from(devices.values()))
+
+            // 发送给渲染进程（前端）
+            win?.webContents.send(
+                'udp-device-discovered',
+                Array.from(devices.values())
+            )
         }
+
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         console.warn('[WARNING] Failed to parse UDP message:', message)
     }
 })
+
 
 udpServer.bind(UDP_DISCOVERY_PORT, () => {
     console.log(`✅ Listening UDP discovery port ${UDP_DISCOVERY_PORT}`)
