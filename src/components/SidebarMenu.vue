@@ -1,5 +1,5 @@
 <template>
-  <el-container style="height: 100vh">
+  <el-container style="height: 100vh; overflow: hidden;">
     <!-- 左侧菜单 -->
     <el-aside width="200px" style="background-color: #001529; color: #fff">
       <el-menu
@@ -14,12 +14,11 @@
         <el-menu-item index="/devices">设备列表</el-menu-item>
         <el-menu-item index="/resource">资源监控</el-menu-item>
         <el-menu-item index="/log">日志</el-menu-item>
-
       </el-menu>
     </el-aside>
 
     <!-- 右侧内容 -->
-    <el-main style="padding: 20px; background-color: #f5f5f5">
+    <el-main style="padding: 20px; background-color: #f5f5f5; overflow-y: auto; height: calc(100vh - 20px);">
       <router-view />
     </el-main>
   </el-container>
@@ -47,7 +46,7 @@ watch(
 )
 </script>
 
-<style scoped>    
+<style scoped>
 .el-menu-vertical-demo {
   height: 100%;
   border-right: 0;

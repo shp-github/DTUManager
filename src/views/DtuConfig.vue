@@ -113,8 +113,6 @@ const saveConfig = async () => {
 
   try {
 
-    console.log('保存配置:',JSON.stringify(allConfig))
-
     const configCopy = JSON.parse(JSON.stringify(allConfig))
 
     const payload = {

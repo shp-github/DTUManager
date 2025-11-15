@@ -32,13 +32,9 @@
       </el-form-item>
 
       <template v-if="currentChannel.enabled">
-        <!-- 数据源多选 -->
+        <!-- 数据源选择 -->
         <el-form-item label="数据源">
-          <el-select
-              v-model="currentChannel.source"
-              multiple
-              placeholder="选择数据源"
-          >
+          <el-select v-model="currentChannel.source" placeholder="选择数据源">
             <el-option label="串口1" value="serial1" />
             <el-option label="串口2" value="serial2" />
             <el-option
@@ -77,7 +73,7 @@
           <el-input-number v-model="currentChannel.heartbeatTime" :min="1" />
         </el-form-item>
 
-        <!-- MQTT 特有配置 -->
+        <!-- MQTT 账号密码 -->
         <template v-if="currentChannel.protocol === 'mqtt'">
           <el-form-item label="账号">
             <el-input v-model="currentChannel.username" />
@@ -87,6 +83,7 @@
             <el-input v-model="currentChannel.password" type="password" />
           </el-form-item>
 
+          <!-- MQTT 特有字段 -->
           <el-form-item label="ClientID">
             <el-input v-model="currentChannel.clientID" />
           </el-form-item>
@@ -110,14 +107,6 @@
           <el-form-item label="遗嘱消息">
             <el-input v-model="currentChannel.lastWillMessage" />
           </el-form-item>
-
-          <el-form-item label="订阅主题">
-            <el-input v-model="currentChannel.subscribeTopic" />
-          </el-form-item>
-
-          <el-form-item label="发布主题">
-            <el-input v-model="currentChannel.publishTopic" />
-          </el-form-item>
         </template>
 
         <!-- 注册包 -->
@@ -129,6 +118,17 @@
         <el-form-item label="心跳包">
           <el-input v-model="currentChannel.heartbeatPackage" />
         </el-form-item>
+
+        <!-- MQTT 订阅/发布主题 -->
+        <template v-if="currentChannel.protocol === 'mqtt'">
+          <el-form-item label="订阅主题">
+            <el-input v-model="currentChannel.subscribeTopic" />
+          </el-form-item>
+
+          <el-form-item label="发布主题">
+            <el-input v-model="currentChannel.publishTopic" />
+          </el-form-item>
+        </template>
       </template>
     </el-form>
   </div>
@@ -141,7 +141,7 @@ const deviceCode = "deviceCode"; // 可从父组件传入
 
 interface Channel {
   enabled: boolean;
-  source: string[]; // 多选数据源
+  source: string; // 数据源
   protocol: "tcp" | "mqtt";
   ip: string;
   port: number;
@@ -158,11 +158,11 @@ interface Channel {
   lastWillMessage: string;
 }
 
-// 初始化6个通道
+/** 六个固定通道 */
 const channels = reactive<Channel[]>(
     Array.from({ length: 6 }, (_, i) => ({
       enabled: true,
-      source: i < 2 ? [`serial${i + 1}`] : [],
+      source: i < 2 ? `serial${i + 1}` : i < 2 + 6 ? `custom${i - 1}` : "console",
       protocol: i === 1 ? "mqtt" : "tcp",
       ip: "121.36.223.224",
       port: i === 1 ? 1883 : 50001,
@@ -197,7 +197,9 @@ const handleProtocolChange = () => {
     ch.QOS = "0";
     ch.PubRetain = false;
     ch.lastWillMessage = "";
-  } else if (ch.protocol === "mqtt") {
+  }
+
+  if (ch.protocol === "mqtt") {
     ch.port = 1883;
     ch.username = "device";
     ch.password = "11223344";
@@ -213,7 +215,8 @@ const handleProtocolChange = () => {
 const handleEnableChange = (enabled: boolean) => {
   const ch = currentChannel.value;
   if (!enabled) {
-    ch.source = [];
+    // 禁用时清空信息
+    ch.source = "";
     ch.protocol = "tcp";
     ch.ip = "";
     ch.port = 0;
@@ -229,6 +232,7 @@ const handleEnableChange = (enabled: boolean) => {
     ch.PubRetain = false;
     ch.lastWillMessage = "";
   } else {
+    // 启用时恢复默认
     ch.ip = "121.36.223.224";
     ch.heartbeatTime = 30;
     ch.registerPackage = deviceCode;

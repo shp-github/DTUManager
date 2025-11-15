@@ -100,15 +100,12 @@ const formatRuntime = (seconds: number) => {
 </script>
 
 <style scoped>
-.dtu-list-container { padding: 20px; background: #fff; }
-.title { font-size: 22px; font-weight: 700; margin-bottom: 15px; }
-.device-search { display: flex; margin-bottom: 10px; }
-.search-input { width: 250px; margin-right: 10px; }
-
 .dtu-list-container {
   padding: 20px;
-  background: #f5f7fa; /* 整体浅灰背景，提升高级感 */
-  min-height: 100vh;
+  background: #f5f7fa; /* 整体浅灰背景 */
+  min-height: 100vh; /* 填满整个屏幕高度 */
+  display: flex;
+  flex-direction: column;
 }
 
 .title {
@@ -118,7 +115,7 @@ const formatRuntime = (seconds: number) => {
   color: #303133;
 }
 
-/* 搜索区域卡片化处理 */
+/* 搜索区域固定 */
 .device-search {
   display: flex;
   align-items: center;
@@ -128,18 +125,30 @@ const formatRuntime = (seconds: number) => {
   border-radius: 10px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.05);
   margin-bottom: 20px;
+  position: sticky; /* 固定在顶部 */
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
 .search-input {
   width: 280px;
 }
 
+/* 让表格区域滚动，移除右侧滚动条 */
+.el-table-wrapper {
+  flex-grow: 1;
+  overflow-y: auto;
+  max-height: calc(100vh - 220px); /* 调整剩余空间 */
+}
+
 /* 表格卡片样式 */
 .el-table {
   border-radius: 12px;
-  overflow: hidden;
   background: #fff;
   box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+  max-height: 100%;
+  overflow: hidden;
 }
 
 /* 表格表头加粗、背景更柔和 */
@@ -175,6 +184,5 @@ const formatRuntime = (seconds: number) => {
   background-color: #66b1ff;
   border-color: #66b1ff;
 }
-
-
 </style>
+
