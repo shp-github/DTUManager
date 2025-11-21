@@ -38,8 +38,8 @@
       </el-table-column>
       <el-table-column prop="firmware" label="固件版本" width="120" />
       <el-table-column prop="heart_interval" label="心跳(s)" width="140" />
-
     </el-table>
+
   </div>
 </template>
 
@@ -68,19 +68,16 @@ const searchDevices = () => {
 
 // 跳转配置页
 const goToConfig = (device: any) => {
-  console.log("跳转配置页面",JSON.stringify(device))
+  console.log("跳转配置页面", JSON.stringify(device))
   router.push({
     name: 'DtuConfig',
-    query: { device: JSON.stringify(device) } // 序列化对象
+    query: { device: JSON.stringify(device) }
   })
 }
 
 // 监听 Electron UDP 发现设备
 onMounted(() => {
   window.electronAPI.onDeviceDiscovered((list: any[]) => {
-
-    console.log('发现设备，',JSON.stringify(list))
-
     devices.value = list
     filteredDevices.value = list
   })
@@ -88,22 +85,24 @@ onMounted(() => {
 
 // 转换秒为 "X天 Y小时 Z分钟 W秒" 格式
 const formatRuntime = (seconds: number) => {
-  const days = Math.floor(seconds / (24 * 3600)); // 计算天数
-  const hours = Math.floor((seconds % (24 * 3600)) / 3600); // 计算小时
-  const minutes = Math.floor((seconds % 3600) / 60); // 计算分钟
-  const sec = seconds % 60; // 计算秒
+  const days = Math.floor(seconds / (24 * 3600))
+  const hours = Math.floor((seconds % (24 * 3600)) / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const sec = seconds % 60
 
-  return `${days}天 ${hours}小时 ${minutes}分钟 ${sec}秒`;
+  return `${days}天 ${hours}小时 ${minutes}分钟 ${sec}秒`
 }
 
-
+// 示例选中值
+const selectedNetwork = ref<'tcp' | 'mqtt'>('tcp')
 </script>
 
 <style scoped>
+/* 样式保持原来 */
 .dtu-list-container {
   padding: 20px;
-  background: #f5f7fa; /* 整体浅灰背景 */
-  min-height: 100vh; /* 填满整个屏幕高度 */
+  background: #f5f7fa;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
@@ -115,7 +114,6 @@ const formatRuntime = (seconds: number) => {
   color: #303133;
 }
 
-/* 搜索区域固定 */
 .device-search {
   display: flex;
   align-items: center;
@@ -125,7 +123,7 @@ const formatRuntime = (seconds: number) => {
   border-radius: 10px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.05);
   margin-bottom: 20px;
-  position: sticky; /* 固定在顶部 */
+  position: sticky;
   top: 0;
   z-index: 10;
   box-shadow: 0 2px 10px rgba(0,0,0,0.1);
@@ -135,14 +133,12 @@ const formatRuntime = (seconds: number) => {
   width: 280px;
 }
 
-/* 让表格区域滚动，移除右侧滚动条 */
 .el-table-wrapper {
   flex-grow: 1;
   overflow-y: auto;
-  max-height: calc(100vh - 220px); /* 调整剩余空间 */
+  max-height: calc(100vh - 220px);
 }
 
-/* 表格卡片样式 */
 .el-table {
   border-radius: 12px;
   background: #fff;
@@ -151,7 +147,6 @@ const formatRuntime = (seconds: number) => {
   overflow: hidden;
 }
 
-/* 表格表头加粗、背景更柔和 */
 .el-table th.el-table__cell {
   background-color: #f2f6fc !important;
   font-weight: 600;
@@ -159,17 +154,14 @@ const formatRuntime = (seconds: number) => {
   height: 45px;
 }
 
-/* 表格行高更舒适 */
 .el-table .el-table__row {
   height: 48px;
 }
 
-/* hover 颜色调柔和 */
 .el-table tbody tr:hover > td {
   background: #f9fbff !important;
 }
 
-/* 操作按钮美化 */
 .el-button--primary.is-link,
 .el-button--primary {
   border-radius: 8px;
@@ -185,4 +177,3 @@ const formatRuntime = (seconds: number) => {
   border-color: #66b1ff;
 }
 </style>
-

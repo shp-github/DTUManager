@@ -49,7 +49,7 @@ interface Device {
 
 // Props
 const props = defineProps<{
-  modelValue: { name: string; interval: number }
+  modelValue: { }
   device: Device | null
 }>()
 

@@ -3,55 +3,45 @@
     <el-card class="config-card" shadow="hover">
       <h3 class="section-title">接口配置</h3>
 
-      <div v-for="(port, index) in ports" :key="index" class="port-item">
+      <div v-for="(port, index) in uarts" :key="index" class="port-item">
         <el-form label-width="120px" :model="port" class="config-form">
           <el-form-item label="名称">
             <el-input v-model="port.name" readonly />
           </el-form-item>
 
           <el-form-item label="启用接口">
+            {{port.enabled}}
             <el-switch v-model="port.enabled" active-text="启用" inactive-text="禁用" />
           </el-form-item>
 
-          <el-form-item label="串口模式">
-            <el-select v-model="port.mode" placeholder="请选择串口模式">
-              <el-option label="RS485" value="rs485" />
-              <el-option label="RS232" value="rs232" />
-              <el-option label="TTL" value="ttl" />
-            </el-select>
-          </el-form-item>
-
           <el-form-item label="波特率">
-            <el-select v-model="port.baudRate" placeholder="请选择波特率">
-              <el-option label="9600" value="9600" />
-              <el-option label="19200" value="19200" />
-              <el-option label="38400" value="38400" />
-              <el-option label="57600" value="57600" />
-              <el-option label="115200" value="115200" />
+            <el-select v-model.number="port.baud" placeholder="请选择波特率">
+              <el-option v-for="b in baudList" :key="b" :label="String(b)" :value="b" />
             </el-select>
           </el-form-item>
 
           <el-form-item label="数据位">
-            <el-select v-model="port.dataBits">
-              <el-option label="7 位" value="7" />
-              <el-option label="8 位" value="8" />
+            <el-select v-model.number="port.dataBits">
+              <el-option label="7 位" :value="7" />
+              <el-option label="8 位" :value="8" />
             </el-select>
           </el-form-item>
 
           <el-form-item label="停止位">
-            <el-select v-model="port.stopBits">
-              <el-option label="1 位" value="1" />
-              <el-option label="2 位" value="2" />
+            <el-select v-model.number="port.stopBits">
+              <el-option :value="1" label="1 位" />
+              <el-option :value="2" label="2 位" />
             </el-select>
           </el-form-item>
 
           <el-form-item label="校验方式">
-            <el-select v-model="port.parity">
+            <el-select v-model="port.parityStr">
               <el-option label="无校验" value="none" />
               <el-option label="奇校验" value="odd" />
               <el-option label="偶校验" value="even" />
             </el-select>
           </el-form-item>
+
         </el-form>
       </div>
     </el-card>
@@ -59,79 +49,108 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, watch, toRefs } from 'vue'
+import { reactive, watch } from 'vue'
 
-interface Port {
-  name: string
-  enabled: boolean
-  mode: string
-  baudRate: number
-  dataBits: number
-  stopBits: number
-  parity: string
-}
+/**
+ * 只做串口基础配置
+ * 不包含 protocol / role
+ */
 
-// 接收 v-model 数据
-const props = defineProps<{ modelValue: Port[] }>()
+// props & emits
+const props = defineProps<{ modelValue?: any }>()
 const emit = defineEmits(['update:modelValue'])
 
-// 初始化 ports，如果 modelValue 没有值，则默认生成两条串口，且默认启用状态为禁用
-const ports = reactive<Port[]>(props.modelValue.length ? props.modelValue : [
-  { name: '串口1', enabled: false, mode: 'rs485', baudRate: 9600, dataBits: 8, stopBits: 1, parity: 'none' },
-  { name: '串口2', enabled: false, mode: 'rs485', baudRate: 9600, dataBits: 8, stopBits: 1, parity: 'none' }
-]);
+// 波特率候选
+const baudList = [9600, 19200, 38400, 57600, 115200]
 
-console.log('初始化串口配置:', ports); // 打印初始的 ports 数据
-console.log('接收到的初始化串口配置:', props.modelValue); // 打印接收到的 props 数据
+// 默认配置（子组件内部使用）
+function defaultPort(name: string) {
+  return {
+    name,
+    enabled: name === 'UART1',
+    baud: 9600,
+    dataBits: 8,
+    stopBits: 1,
+    parityStr: 'none'   // UI 内部用字符串
+  }
+}
 
-// 监听 ports 变化，回传给父组件
+// parity 字符串 <-> 数字 映射（MCU 0/1/2）
+const parityStrToNum = (s: string) =>
+    s === 'odd' ? 1 : s === 'even' ? 2 : 0
+
+const parityNumToStr = (n: number) =>
+    n === 1 ? 'odd' : n === 2 ? 'even' : 'none'
+
+// 把父传参数规范化
+function normalizeFromParent(parentPort: any) {
+  if (!parentPort) return {}
+
+  const parityStr =
+      typeof parentPort.parity === 'number'
+          ? parityNumToStr(parentPort.parity)
+          : (parentPort.parity ?? 'none')
+
+  return {
+    enabled: parentPort.enabled,
+    baud: parentPort.baud,
+    dataBits: parentPort.dataBits,
+    stopBits: parentPort.stopBits,
+    parityStr
+  }
+}
+
+// 内部 react 数据
+const uarts = reactive([
+  Object.assign({}, defaultPort('UART1'), normalizeFromParent(props.modelValue?.uart1)),
+  Object.assign({}, defaultPort('UART2'), normalizeFromParent(props.modelValue?.uart2))
+])
+
+// 父传入变化 → 同步
 watch(
-    ports,
-    (newVal) => {
-      console.log('串口配置已更新:', newVal); // 打印新的 ports 数据
-      emit('update:modelValue', newVal);
+    () => props.modelValue,
+    (nv) => {
+      if (!nv) return
+      if (nv.uart1) Object.assign(uarts[0], normalizeFromParent(nv.uart1))
+      if (nv.uart2) Object.assign(uarts[1], normalizeFromParent(nv.uart2))
     },
     { deep: true }
-);
+)
 
-// 开关状态变化时打印
-const handleSwitchChange = (port: Port) => {
-  console.log(`串口 "${port.name}" 的启用状态已更改为: ${port.enabled ? '启用' : '禁用'}`);
-}
+// 内部变化 → 回传父
+watch(
+    uarts,
+    (newVal) => {
+      console.log('调整配置值',JSON.stringify(newVal))
+      const out = {
+        uart1: {
+          name: newVal[0].name,
+          enabled: newVal[0].enabled,
+          baud: newVal[0].baud,
+          dataBits: newVal[0].dataBits,
+          stopBits: newVal[0].stopBits,
+          parity: parityStrToNum(newVal[0].parityStr),
+        },
+        uart2: {
+          name: newVal[1].name,
+          enabled: newVal[1].enabled,
+          baud: newVal[1].baud,
+          dataBits: newVal[1].dataBits,
+          stopBits: newVal[1].stopBits,
+          parity: parityStrToNum(newVal[1].parityStr),
+        }
+      }
+      emit('update:modelValue', out)
+      console.log('修改配置值',JSON.stringify(out))
 
-// 波特率变化时打印
-const handleBaudRateChange = (port: Port) => {
-  console.log(`串口 "${port.name}" 的波特率已更改为: ${port.baudRate}`);
-}
-
-// 提交数据时打印
-const handleSubmit = () => {
-  console.log('提交的串口配置数据:', ports);
-}
+    },
+    { deep: true }
+)
 </script>
 
 <style scoped>
-.interface-config {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.config-card {
-  padding: 20px;
-  border-radius: 10px;
-}
-
-.section-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 16px;
-}
-
-.port-item {
-  margin-bottom: 20px;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 10px;
-}
+.interface-config { display:flex; flex-direction:column; gap:20px; }
+.config-card { padding:20px; border-radius:10px; }
+.section-title { font-size:20px; font-weight:600; margin-bottom:16px; }
+.port-item { margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px; }
 </style>

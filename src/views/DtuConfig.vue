@@ -1,40 +1,51 @@
 <template>
   <div class="dtu-config-container">
-    <div class="header">
-      <h2 class="title">DTU 配置 - {{ device?.id }}</h2>
-      <div class="actions">
-        <el-button class="action-btn" type="default" @click="goBack">
-          <el-icon><ArrowLeft /></el-icon>
-          返回
-        </el-button>
-        <el-button class="action-btn" type="primary" @click="saveConfig">
-          <el-icon><DocumentAdd /></el-icon>
-          保存
-        </el-button>
+    <!-- 固定头部 -->
+    <div class="header-wrapper">
+      <div class="header">
+        <h2 class="title">DTU 配置 - {{ device?.id }}</h2>
+        <div class="actions">
+          <el-button class="action-btn" type="default" @click="goBack">
+            <el-icon><ArrowLeft /></el-icon>
+            返回
+          </el-button>
+          <el-button class="action-btn" type="primary" @click="saveConfig">
+            <el-icon><DocumentAdd /></el-icon>
+            保存
+          </el-button>
+        </div>
       </div>
+
+      <!-- Tab Header 固定 -->
+      <el-tabs v-model="activeTab" class="tabs-underline" type="card">
+        <el-tab-pane label="基本信息" name="basic" />
+        <el-tab-pane label="接口" name="interface" />
+        <el-tab-pane label="网络链接" name="network" />
+        <el-tab-pane label="Modbus" name="modbus" />
+        <el-tab-pane label="场景配置" name="scene" />
+      </el-tabs>
     </div>
 
-    <el-tabs v-model="activeTab" class="tabs-underline" type="card">
-      <el-tab-pane label="基本信息" name="basic">
-        <BasicConfig v-model="allConfig.basic" :device="device" />
-      </el-tab-pane>
-
-      <el-tab-pane label="接口" name="interface">
-        <InterfaceConfig v-model="allConfig.interface" />
-      </el-tab-pane>
-
-      <el-tab-pane label="网络链接" name="network">
-        <NetworkConfig v-model="allConfig.network" />
-      </el-tab-pane>
-
-      <el-tab-pane label="Modbus" name="modbus">
-        <ModbusConfig v-model="allConfig.modbus" />
-      </el-tab-pane>
-
-      <el-tab-pane label="场景配置" name="scene">
-        <SceneConfig v-model="allConfig.scene" />
-      </el-tab-pane>
-    </el-tabs>
+    <!-- 滚动内容区域 -->
+    <div class="tab-content-wrapper">
+      <el-tabs v-model="activeTab" class="tabs-content-wrapper" type="card">
+        <el-tab-pane label="基本信息" name="basic">
+          <BasicConfig v-model="allConfig.basic" :device="device" />
+        </el-tab-pane>
+        <el-tab-pane label="接口" name="interface">
+          <InterfaceConfig v-model="allConfig.interface" />
+        </el-tab-pane>
+        <el-tab-pane label="网络链接" name="network">
+          <NetworkConfig v-model="allConfig.network" :device="device" />
+        </el-tab-pane>
+        <el-tab-pane label="Modbus" name="modbus">
+          <ModbusConfig v-model="allConfig.modbus" />
+        </el-tab-pane>
+        <el-tab-pane label="场景配置" name="scene">
+          <SceneConfig v-model="allConfig.scene" />
+        </el-tab-pane>
+      </el-tabs>
+    </div>
   </div>
 </template>
 
@@ -54,16 +65,14 @@ import SceneConfig from './dtu/SceneConfig.vue'
 const props = defineProps<{ device: any }>()
 const device = ref(props.device)
 
-console.log('[DEBUG] 接收到 props.device:', device.value)
-
 const router = useRouter()
 const activeTab = ref('basic')
 
 // 配置对象
 const allConfig = reactive({
-  basic: {},
-  interface: [
-  ],
+  basic: {
+  },
+  interface: [],
   network: {},
   modbus: {},
   scene: {}
@@ -72,10 +81,12 @@ const allConfig = reactive({
 // 读取设备配置
 const loadDeviceConfig = async () => {
   if (!device.value) return
-
   try {
     const config = await window.electronAPI.readDeviceConfig(JSON.parse(JSON.stringify(device.value)))
     if (config) Object.assign(allConfig, config)
+
+    console.log('读取配置:\n', JSON.stringify(config, null, 2))
+
   } catch (err) {
     console.error('[ERROR] 读取设备配置失败:', err)
     ElMessage.error('读取设备配置失败')
@@ -86,14 +97,12 @@ const loadDeviceConfig = async () => {
 let runtimeTimer: number
 onMounted(() => {
   loadDeviceConfig()
-
   runtimeTimer = window.setInterval(() => {
     if (device.value && device.value.runtime !== undefined) {
       device.value.runtime += 1
     }
   }, 1000)
 
-  // 监听菜单栏保存事件
   window.electronAPI.on('menu-action', (action: string) => {
     if (action === 'save') saveConfig()
   })
@@ -108,70 +117,56 @@ onBeforeUnmount(() => {
 const goBack = () => router.push({ name: 'DeviceList' })
 
 // 保存配置
+// 保存配置
 const saveConfig = async () => {
   if (!device.value) return
-
   try {
-
-    const configCopy = JSON.parse(JSON.stringify(allConfig))
 
     const payload = {
       [device.value.id]: {
         type: 'config',
-        heart_interval: configCopy.basic.interval || 5,
-        network: configCopy.network || {},
-        channels: [
-          {
-            enabled: configCopy.interface.enabled || false,
-            protocol: configCopy.interface.protocol || '',
-            target: configCopy.interface.target || '',
-            port: configCopy.interface.port || 0
-          },
-          {
-            enabled: configCopy.modbus.enabled || false,
-            protocol: configCopy.modbus.protocol || '',
-            target: configCopy.modbus.target || '',
-            port: configCopy.modbus.port || 0
-          },
-          {
-            enabled: configCopy.scene.enabled || false,
-            protocol: configCopy.scene.protocol || '',
-            target: configCopy.scene.target || '',
-            port: configCopy.scene.port || 0
-          }
-        ]
+        ...JSON.parse(JSON.stringify(allConfig))
       }
     }
 
     const result = await window.electronAPI.saveConfig(payload)
+    console.log('保存配置:\n', JSON.stringify(payload, null, 2))
 
     if (result.success) {
       ElMessage.success('配置已保存到设备')
     } else {
       ElMessage.error('保存失败：' + result.error)
     }
+
   } catch (err: any) {
     ElMessage.error('保存异常: ' + (err.message || err))
   }
 }
+
 </script>
 
 <style scoped>
 .dtu-config-container {
-  height: 100vh;
-  padding: 20px;
-  background: #fff;
   display: flex;
   flex-direction: column;
+  height: 100vh;
+  background: #fff;
+}
+
+.header-wrapper {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 2px solid #f2f2f2;
+  padding: 20px;
+  border-bottom: 1px solid #f2f2f2;
 }
 
 .title {
@@ -197,7 +192,7 @@ const saveConfig = async () => {
   font-weight: 600;
 }
 
-/* 横条风格 Tab */
+/* 固定 Tab Header */
 .tabs-underline ::v-deep(.el-tabs__header) {
   border-bottom: 2px solid #e0e0e0;
   padding: 0 10px;
@@ -229,13 +224,10 @@ const saveConfig = async () => {
   border-radius: 2px 2px 0 0;
 }
 
-.tabs-underline ::v-deep(.el-tabs__content) {
+/* 滚动内容 */
+.tab-content-wrapper {
   flex: 1;
-  padding: 15px;
-  background-color: #fff;
-  border-radius: 0 0 8px 8px;
-  box-shadow: inset 0 0 6px rgba(0,0,0,0.03);
-  height: calc(100vh - 120px);
   overflow-y: auto;
+  padding: 15px;
 }
 </style>

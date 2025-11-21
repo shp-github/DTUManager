@@ -237,8 +237,10 @@ ipcMain.handle('save-config', async (_event, payload) => {
 })
 
 // =================== 优化后的读取设备配置 ===================
+// =================== 优化后的读取设备配置（带调试日志） ===================
 ipcMain.handle('read-device-config', async (_event, device) => {
     if (!device || !device.ip) {
+        console.error('[READ CONFIG] 无效的 device 对象:', device)
         throw new Error('Invalid device object')
     }
 
@@ -249,33 +251,43 @@ ipcMain.handle('read-device-config', async (_event, device) => {
         if (!closed) {
             sock.close()
             closed = true
+            console.log('[READ CONFIG] UDP socket 已关闭')
         }
     }
 
     const msg = Buffer.from(JSON.stringify({ type: 'read_config' }))
+    console.log(`[READ CONFIG] 准备发送读取请求到设备 ${device.id} (${ip}:${UDP_CONFIG_PORT})`, msg.toString())
 
     return new Promise((resolve, reject) => {
         sock.send(msg, UDP_CONFIG_PORT, ip, (err) => {
             if (err) {
+                console.error('[READ CONFIG] 发送请求失败:', err)
                 closeSock()
                 return reject(err)
+            } else {
+                console.log(`[READ CONFIG] 已发送请求到 ${ip}:${UDP_CONFIG_PORT}`)
             }
         })
 
         sock.on('message', (msg, rinfo) => {
+            console.log(`[READ CONFIG] 收到 UDP 消息，来自 ${rinfo.address}:${rinfo.port}，长度 ${msg.length}`)
             try {
                 const payload = JSON.parse(msg.toString())
+                console.log('[READ CONFIG] 消息内容:', payload)
                 if (payload.type === 'config' && rinfo.address === ip) {
+                    console.log(`[READ CONFIG] 配置已匹配，返回给前端`)
                     closeSock()
                     resolve(payload)
                 }
             } catch (err) {
+                console.error('[READ CONFIG] 解析消息失败:', err)
                 closeSock()
                 reject(err)
             }
         })
 
         const timer = setTimeout(() => {
+            console.error(`[READ CONFIG] 设备读取配置超时 (${ip})`)
             closeSock()
             reject(new Error('Device read config timeout'))
         }, 3000)
@@ -286,3 +298,4 @@ ipcMain.handle('read-device-config', async (_event, device) => {
         reject = (err) => { clearTimeout(timer); originalReject(err) }
     })
 })
+

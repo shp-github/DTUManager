@@ -25,7 +25,8 @@ electron-builder --win --x64
 
 
 
-
+power-shell运行
+npx electron-builder --win --x64
 
 
 

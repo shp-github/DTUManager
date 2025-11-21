@@ -5,7 +5,7 @@
     <el-card shadow="hover" class="modbus-card">
       <el-form :model="modbusConfig" label-width="140px">
         <el-form-item label="启用 Modbus">
-          <el-switch v-model="modbusConfig.enabled" active-text="启用" inactive-text="禁用" @change="handleEnableChange"/>
+          <el-switch v-model="modbusConfig.enabled" active-text="启用" inactive-text="禁用" />
         </el-form-item>
 
         <template v-if="modbusConfig.enabled">
@@ -16,17 +16,16 @@
             </el-select>
           </el-form-item>
 
-          <el-form-item label="输出数据源">
-            <el-select v-model="modbusConfig.outputSource" multiple>
-              <el-option v-for="i in 6" :label="'自定义' + i" :value="'custom' + i" :key="i"/>
-            </el-select>
-          </el-form-item>
-
           <el-form-item label="输入数据源">
             <el-select v-model="modbusConfig.inputSource" multiple>
               <el-option label="串口1" value="serial1"/>
               <el-option label="串口2" value="serial2"/>
-              <el-option v-for="i in 6" :label="'自定义' + i" :value="'custom' + i" :key="i"/>
+            </el-select>
+          </el-form-item>
+
+          <el-form-item label="输出数据源">
+            <el-select v-model="modbusConfig.outputSource" multiple>
+              <el-option v-for="i in 6" :label="'自定义' + i" :value="i" :key="i"/>
             </el-select>
           </el-form-item>
 
@@ -39,9 +38,8 @@
       </el-form>
     </el-card>
 
-    <!-- 下半部分 -->
+    <!-- 下半部分：轮询指令 -->
     <el-card shadow="hover" class="modbus-card" style="margin-top:20px;">
-
       <div class="command-header">
         <h4>轮询指令</h4>
         <el-button type="primary" @click="addCommand">添加指令</el-button>
@@ -56,14 +54,12 @@
         <el-table-column type="expand">
           <template #default="{ row }">
             <div class="expand-wrapper" @click.stop>
-
               <div class="mapping-header">
                 <h4>寄存器映射</h4>
                 <el-button size="small" type="primary" @click="addMapping(row)">添加映射</el-button>
               </div>
 
               <el-table :data="row.mappings" style="margin-top:10px;">
-
                 <el-table-column label="键值">
                   <template #default="{ row: m }">
                     <el-input v-model="m.key" @click.stop />
@@ -99,34 +95,28 @@
                     <el-button size="small" type="danger" @click="removeMapping(row, $index)">删除</el-button>
                   </template>
                 </el-table-column>
-
               </el-table>
-
             </div>
           </template>
         </el-table-column>
 
         <!-- 普通列 -->
         <el-table-column type="index" label="#" width="40"/>
-
         <el-table-column label="采集周期(秒)" width="140">
           <template #default="{ row }">
             <el-input-number v-model="row.cycle" :min="1" @click.stop />
           </template>
         </el-table-column>
-
         <el-table-column label="单独传" width="120">
           <template #default="{ row }">
             <el-switch v-model="row.independent" @click.stop />
           </template>
         </el-table-column>
-
         <el-table-column label="从机地址" width="160">
           <template #default="{ row }">
             <el-input v-model="row.slaveAddress" type="number" min="1" max="247" @input.stop />
           </template>
         </el-table-column>
-
         <el-table-column label="功能码" width="120">
           <template #default="{ row }">
             <el-select v-model="row.functionCode" @click.stop>
@@ -137,106 +127,122 @@
             </el-select>
           </template>
         </el-table-column>
-
         <el-table-column label="起始寄存器" width="140">
           <template #default="{ row }">
             <el-input v-model="row.startRegister" type="number" min="0" @input.stop />
           </template>
         </el-table-column>
-
         <el-table-column label="寄存器数量" width="140">
           <template #default="{ row }">
             <el-input v-model="row.registerCount" type="number" min="1" @input.stop />
           </template>
         </el-table-column>
-
         <el-table-column label="操作" width="180">
           <template #default="{ $index }">
             <el-button size="small" type="warning" @click="copyCommand($index)">复制</el-button>
             <el-button size="small" type="danger" @click="removeCommand($index)">删除</el-button>
           </template>
         </el-table-column>
-
       </el-table>
-
     </el-card>
 
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
-import { nanoid } from 'nanoid';
+import { reactive, ref, computed, watch } from 'vue'
+import { nanoid } from 'nanoid'
 
-const expandedRows = ref<string[]>([]);
+const props = defineProps<{
+  modelValue?: any
+}>()
+const emit = defineEmits(['update:modelValue'])
 
-const modbusConfig = reactive({
+const expandedRows = ref<string[]>([])
+
+// 默认值工厂
+const defaultConfig = () => ({
   enabled: true,
   protocol: 'rtu',
-  outputSource: [],
-  inputSource: [],
+  inputSource: ['serial1'],
+  outputSource: [1],
   interval: 1000,
   commands: []
-});
+})
+
+// 内部 reactive 状态
+const internalConfig = reactive(defaultConfig())
+
+// computed v-model
+const modbusConfig = computed({
+  get() {
+    return props.modelValue ?? internalConfig
+  },
+  set(val) {
+    emit('update:modelValue', JSON.parse(JSON.stringify(val)))
+  }
+})
+
+// 父组件更新时，合并到内部状态
+watch(() => props.modelValue, (val) => {
+  if (val) Object.assign(internalConfig, val)
+})
+
+// ------------------- 命令/映射操作 -------------------
 
 // 添加命令
 function addCommand() {
-  modbusConfig.commands.push({
+
+  if (!modbusConfig.value.commands) {
+    modbusConfig.value.commands = []
+  }
+  modbusConfig.value.commands.push({
     id: nanoid(),
-    cycle: 1,
-    independent: false,
+    cycle: 10,
+    independent: true,
     slaveAddress: 1,
     functionCode: '03',
     startRegister: 0,
     registerCount: 1,
     mappings: []
-  });
+  })
 }
 
 // 删除命令
 function removeCommand(i: number) {
-  modbusConfig.commands.splice(i, 1);
+  modbusConfig.value.commands.splice(i, 1)
 }
 
 // 复制命令
 function copyCommand(i: number) {
-  const cmd = modbusConfig.commands[i];
-  modbusConfig.commands.splice(i + 1, 0, {
+  const cmd = modbusConfig.value.commands[i]
+  modbusConfig.value.commands.splice(i + 1, 0, {
     ...cmd,
     id: nanoid(),
     mappings: cmd.mappings.map(m => ({ ...m }))
-  });
+  })
 }
 
 // 添加映射
 function addMapping(cmd: any) {
+  console.log('添加映射：',JSON.stringify(cmd))
   cmd.mappings.push({
-    key: '',
+    key: 'a1',
     address: 0,
     length: 1,
     order: 'ABCD'
-  });
+  })
 }
 
 // 删除映射
 function removeMapping(cmd: any, index: number) {
-  cmd.mappings.splice(index, 1);
+  cmd.mappings.splice(index, 1)
 }
 
 // 复制映射
 function copyMapping(cmd: any, index: number) {
-  const m = cmd.mappings[index];
-  cmd.mappings.splice(index + 1, 0, { ...m });
-}
-
-// 启用与禁用
-function handleEnableChange(val: boolean) {
-  if (!val) {
-    modbusConfig.commands = [];
-    modbusConfig.inputSource = [];
-    modbusConfig.outputSource = [];
-    modbusConfig.interval = 0;
-  }
+  const m = cmd.mappings[index]
+  cmd.mappings.splice(index + 1, 0, { ...m })
 }
 </script>
 
@@ -307,15 +313,5 @@ function handleEnableChange(val: boolean) {
 /* 调整表格的列标题间距 */
 .el-table-column label {
   font-size: 13px;
-}
-
-.el-input,
-.el-select {
-  font-size: 14px;
-}
-
-.el-table-column .el-input,
-.el-table-column .el-select {
-  min-width: 120px;
 }
 </style>

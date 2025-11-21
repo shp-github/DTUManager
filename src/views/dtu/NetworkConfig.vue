@@ -21,7 +21,7 @@
         label-width="120px"
         class="network-form"
     >
-      <!-- 启用开关 -->
+      <!-- 启用通道 -->
       <el-form-item label="启用通道">
         <el-switch
             v-model="currentChannel.enabled"
@@ -32,7 +32,7 @@
       </el-form-item>
 
       <template v-if="currentChannel.enabled">
-        <!-- 数据源选择 -->
+        <!-- 数据源 -->
         <el-form-item label="数据源">
           <el-select v-model="currentChannel.source" placeholder="选择数据源">
             <el-option label="串口1" value="serial1" />
@@ -58,36 +58,29 @@
           </el-select>
         </el-form-item>
 
-        <!-- IP -->
+        <!-- IP / 端口 / 心跳 -->
         <el-form-item label="IP 地址">
           <el-input v-model="currentChannel.ip" />
         </el-form-item>
-
-        <!-- 端口 -->
         <el-form-item label="端口">
           <el-input v-model="currentChannel.port" type="number" />
         </el-form-item>
-
-        <!-- 心跳时间 -->
         <el-form-item label="心跳时间(秒)">
           <el-input-number v-model="currentChannel.heartbeatTime" :min="1" />
         </el-form-item>
 
-        <!-- MQTT 账号密码 -->
+        <!-- MQTT 特有 -->
         <template v-if="currentChannel.protocol === 'mqtt'">
-          <el-form-item label="账号">
-            <el-input v-model="currentChannel.username" />
-          </el-form-item>
-
+          <el-form-item label="账号"><el-input v-model="currentChannel.username" /></el-form-item>
           <el-form-item label="密码">
-            <el-input v-model="currentChannel.password" type="password" />
+            <el-input
+                v-model="currentChannel.password"
+                type="password"
+                show-password
+                placeholder="请输入密码"
+            />
           </el-form-item>
-
-          <!-- MQTT 特有字段 -->
-          <el-form-item label="ClientID">
-            <el-input v-model="currentChannel.clientID" />
-          </el-form-item>
-
+          <el-form-item label="ClientID"><el-input v-model="currentChannel.clientID" /></el-form-item>
           <el-form-item label="QOS">
             <el-select v-model="currentChannel.QOS">
               <el-option label="0" value="0" />
@@ -95,7 +88,6 @@
               <el-option label="2" value="2" />
             </el-select>
           </el-form-item>
-
           <el-form-item label="PubRetain">
             <el-switch
                 v-model="currentChannel.PubRetain"
@@ -104,44 +96,29 @@
             />
           </el-form-item>
 
-          <el-form-item label="遗嘱消息">
-            <el-input v-model="currentChannel.lastWillMessage" />
-          </el-form-item>
+          <el-form-item label="订阅主题"><el-input v-model="currentChannel.subscribeTopic" /></el-form-item>
+          <el-form-item label="发布主题"><el-input v-model="currentChannel.publishTopic" /></el-form-item>
+          <el-form-item label="遗嘱消息"><el-input v-model="currentChannel.lastWillMessage" /></el-form-item>
         </template>
 
-        <!-- 注册包 -->
-        <el-form-item label="注册包">
-          <el-input v-model="currentChannel.registerPackage" />
-        </el-form-item>
-
-        <!-- 心跳包 -->
-        <el-form-item label="心跳包">
-          <el-input v-model="currentChannel.heartbeatPackage" />
-        </el-form-item>
-
-        <!-- MQTT 订阅/发布主题 -->
-        <template v-if="currentChannel.protocol === 'mqtt'">
-          <el-form-item label="订阅主题">
-            <el-input v-model="currentChannel.subscribeTopic" />
-          </el-form-item>
-
-          <el-form-item label="发布主题">
-            <el-input v-model="currentChannel.publishTopic" />
-          </el-form-item>
-        </template>
+        <!-- 注册包 / 心跳包 -->
+        <el-form-item label="注册包"><el-input v-model="currentChannel.registerPackage" /></el-form-item>
+        <el-form-item label="心跳包"><el-input v-model="currentChannel.heartbeatPackage" /></el-form-item>
       </template>
     </el-form>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed } from "vue";
+import { reactive, computed, ref, watch, defineEmits } from "vue";
 
-const deviceCode = "deviceCode"; // 可从父组件传入
+interface Device {
+  id: string
+}
 
 interface Channel {
   enabled: boolean;
-  source: string; // 数据源
+  source: string;
   protocol: "tcp" | "mqtt";
   ip: string;
   port: number;
@@ -158,31 +135,67 @@ interface Channel {
   lastWillMessage: string;
 }
 
-/** 六个固定通道 */
+// Props
+const props = defineProps<{
+  modelValue?: {},
+  device?: Device | null
+}>()
+
+const emit = defineEmits<{
+  (e: 'update:modelValue', value: Channel[]): void
+}>()
+
+// 活跃通道
+const activeChannelIndex = ref(0);
+
+// 初始化 channels
 const channels = reactive<Channel[]>(
-    Array.from({ length: 6 }, (_, i) => ({
-      enabled: true,
-      source: i < 2 ? `serial${i + 1}` : i < 2 + 6 ? `custom${i - 1}` : "console",
-      protocol: i === 1 ? "mqtt" : "tcp",
-      ip: "121.36.223.224",
-      port: i === 1 ? 1883 : 50001,
-      heartbeatTime: 30,
-      username: i === 1 ? "device" : "",
-      password: i === 1 ? "11223344" : "",
-      registerPackage: deviceCode,
-      heartbeatPackage: deviceCode,
-      subscribeTopic: i === 1 ? `/server/coo/${deviceCode}` : "",
-      publishTopic: i === 1 ? `/dev/coo/${deviceCode}` : "",
-      clientID: i === 1 ? "deviceClient" : "",
+    Array.from({ length: 3 }, (_, i) => ({
+      enabled: i === 0, // 默认只开启通道1
+      source: i === 0 ? "serial1" : "",
+      protocol: i === 0 ? "mqtt" : "tcp",
+      ip: i === 0 && props.device ? "121.36.223.224" : "",
+      port: i === 0 ? 1883 : 50001,
+      heartbeatTime: i === 0 ? 30 : 0,
+      username: i === 0 ? "device" : "",
+      password: i === 0 ? "11223344" : "",
+      registerPackage: i === 0 && props.device ? props.device.id : "",
+      heartbeatPackage: i === 0 && props.device ? props.device.id : "",
+      subscribeTopic: i === 0 && props.device ? `/server/coo/${props.device.id}` : "",
+      publishTopic: i === 0 && props.device ? `/dev/coo/${props.device.id}` : "",
+      clientID: i === 0 && props.device ? props.device.id : "",
       QOS: "0",
       PubRetain: false,
       lastWillMessage: ""
     }))
-);
+)
 
-const activeChannelIndex = ref(0);
-const currentChannel = computed(() => channels[activeChannelIndex.value]);
+// 当前通道
+const currentChannel = computed(() => channels[activeChannelIndex.value])
 
+// device 改变时更新通道依赖字段
+watch(() => props.device, (device) => {
+  if (device) {
+    channels.forEach((ch) => {
+      if (ch.enabled) {
+        ch.registerPackage = device.id
+        ch.heartbeatPackage = device.id
+        if (ch.protocol === "mqtt") {
+          ch.subscribeTopic = `/server/coo/${device.id}`
+          ch.publishTopic = `/dev/coo/${device.id}`
+          ch.clientID = device.id
+        }
+      }
+    })
+  }
+}, { immediate: true })
+
+// 监听 channels 改变，向父组件同步
+watch(channels, (val) => {
+  emit('update:modelValue', val)
+}, { deep: true })
+
+// 协议切换
 const handleProtocolChange = () => {
   const ch = currentChannel.value;
   if (!ch.enabled) return;
@@ -197,69 +210,52 @@ const handleProtocolChange = () => {
     ch.QOS = "0";
     ch.PubRetain = false;
     ch.lastWillMessage = "";
-  }
-
-  if (ch.protocol === "mqtt") {
+  } else if (ch.protocol === "mqtt" && props.device) {
     ch.port = 1883;
     ch.username = "device";
     ch.password = "11223344";
-    ch.subscribeTopic = `/server/coo/${deviceCode}`;
-    ch.publishTopic = `/dev/coo/${deviceCode}`;
+    ch.subscribeTopic = `/server/coo/${props.device.id}`;
+    ch.publishTopic = `/dev/coo/${props.device.id}`;
     ch.clientID = "deviceClient";
     ch.QOS = "0";
     ch.PubRetain = false;
     ch.lastWillMessage = "";
   }
-};
+}
 
+// 启用/禁用通道
 const handleEnableChange = (enabled: boolean) => {
   const ch = currentChannel.value;
   if (!enabled) {
-    // 禁用时清空信息
-    ch.source = "";
-    ch.protocol = "tcp";
-    ch.ip = "";
-    ch.port = 0;
-    ch.heartbeatTime = 0;
-    ch.username = "";
-    ch.password = "";
-    ch.registerPackage = "";
-    ch.heartbeatPackage = "";
-    ch.subscribeTopic = "";
-    ch.publishTopic = "";
-    ch.clientID = "";
-    ch.QOS = "0";
-    ch.PubRetain = false;
-    ch.lastWillMessage = "";
+    Object.assign(ch, {
+      enabled: false,
+      source: "",
+      protocol: "tcp",
+      ip: "",
+      port: 0,
+      heartbeatTime: 0,
+      username: "",
+      password: "",
+      registerPackage: "",
+      heartbeatPackage: "",
+      subscribeTopic: "",
+      publishTopic: "",
+      clientID: "",
+      QOS: "0",
+      PubRetain: false,
+      lastWillMessage: ""
+    });
   } else {
-    // 启用时恢复默认
+    ch.enabled = true;
     ch.ip = "121.36.223.224";
     ch.heartbeatTime = 30;
-    ch.registerPackage = deviceCode;
-    ch.heartbeatPackage = deviceCode;
-    if (ch.protocol === "mqtt") {
-      ch.port = 1883;
-      ch.username = "device";
-      ch.password = "11223344";
-      ch.subscribeTopic = `/server/coo/${deviceCode}`;
-      ch.publishTopic = `/dev/coo/${deviceCode}`;
-      ch.clientID = "deviceClient";
-      ch.QOS = "0";
-      ch.PubRetain = false;
-      ch.lastWillMessage = "";
-    } else {
-      ch.port = 50001;
-      ch.username = "";
-      ch.password = "";
-      ch.subscribeTopic = "";
-      ch.publishTopic = "";
-      ch.clientID = "";
-      ch.QOS = "0";
-      ch.PubRetain = false;
-      ch.lastWillMessage = "";
+    if (props.device) {
+      ch.registerPackage = props.device.id
+      ch.heartbeatPackage = props.device.id
     }
+    handleProtocolChange();
   }
-};
+}
 </script>
 
 <style scoped>
