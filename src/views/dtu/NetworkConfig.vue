@@ -110,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, computed, ref, watch, defineEmits } from "vue";
+import { reactive, ref, computed, watch } from "vue"
 
 interface Device {
   id: string
@@ -135,9 +135,9 @@ interface Channel {
   lastWillMessage: string;
 }
 
-// Props
+// ================== Props & Emits ==================
 const props = defineProps<{
-  modelValue?: {},
+  modelValue?: Channel[],
   device?: Device | null
 }>()
 
@@ -145,57 +145,89 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: Channel[]): void
 }>()
 
-// 活跃通道
+// ================== 状态定义 ==================
 const activeChannelIndex = ref(0);
+
+function defaultChannel(i: number): Channel {
+  return {
+    enabled: i === 0,
+    source: i === 0 ? "serial1" : "",
+    protocol: i === 0 ? "mqtt" : "tcp",
+    ip: i === 0 && props.device ? "121.36.223.224" : "",
+    port: i === 0 ? 1883 : 50001,
+    heartbeatTime: i === 0 ? 30 : 0,
+    username: i === 0 ? "device" : "",
+    password: i === 0 ? "11223344" : "",
+    registerPackage: i === 0 && props.device ? props.device.id : "",
+    heartbeatPackage: i === 0 && props.device ? props.device.id : "",
+    subscribeTopic: i === 0 && props.device ? `/server/coo/${props.device.id}` : "",
+    publishTopic: i === 0 && props.device ? `/dev/coo/${props.device.id}` : "",
+    clientID: i === 0 && props.device ? props.device.id : "",
+    QOS: "0",
+    PubRetain: false,
+    lastWillMessage: ""
+  }
+}
 
 // 初始化 channels
 const channels = reactive<Channel[]>(
-    Array.from({ length: 3 }, (_, i) => ({
-      enabled: i === 0, // 默认只开启通道1
-      source: i === 0 ? "serial1" : "",
-      protocol: i === 0 ? "mqtt" : "tcp",
-      ip: i === 0 && props.device ? "121.36.223.224" : "",
-      port: i === 0 ? 1883 : 50001,
-      heartbeatTime: i === 0 ? 30 : 0,
-      username: i === 0 ? "device" : "",
-      password: i === 0 ? "11223344" : "",
-      registerPackage: i === 0 && props.device ? props.device.id : "",
-      heartbeatPackage: i === 0 && props.device ? props.device.id : "",
-      subscribeTopic: i === 0 && props.device ? `/server/coo/${props.device.id}` : "",
-      publishTopic: i === 0 && props.device ? `/dev/coo/${props.device.id}` : "",
-      clientID: i === 0 && props.device ? props.device.id : "",
-      QOS: "0",
-      PubRetain: false,
-      lastWillMessage: ""
-    }))
+    props.modelValue?.length
+        ? props.modelValue.map((x, i) => Object.assign(defaultChannel(i), x))
+        : Array.from({ length: 3 }, (_, i) => defaultChannel(i))
 )
 
 // 当前通道
 const currentChannel = computed(() => channels[activeChannelIndex.value])
 
-// device 改变时更新通道依赖字段
-watch(() => props.device, (device) => {
-  if (device) {
-    channels.forEach((ch) => {
-      if (ch.enabled) {
-        ch.registerPackage = device.id
-        ch.heartbeatPackage = device.id
-        if (ch.protocol === "mqtt") {
-          ch.subscribeTopic = `/server/coo/${device.id}`
-          ch.publishTopic = `/dev/coo/${device.id}`
-          ch.clientID = device.id
+// ================== 父 → 子同步 ==================
+watch(
+    () => props.modelValue,
+    (val) => {
+      if (!val) return
+      val.forEach((item, i) => {
+        if (channels[i]) {
+          Object.assign(channels[i], item)
         }
-      }
-    })
-  }
-}, { immediate: true })
+      })
+    },
+    { deep: true }
+)
 
-// 监听 channels 改变，向父组件同步
-watch(channels, (val) => {
-  emit('update:modelValue', val)
-}, { deep: true })
+// ================== 子 → 父同步 ==================
+watch(
+    channels,
+    (val) => {
 
-// 协议切换
+      console.log('调整配置值',JSON.stringify(val))
+      console.log('调整配置值',JSON.parse(JSON.stringify(val)))
+
+      emit("update:modelValue", JSON.parse(JSON.stringify(val)))
+    },
+    { deep: true }
+)
+
+// ================== device 更新带动联动字段 ==================
+watch(
+    () => props.device,
+    (device) => {
+      if (!device) return
+      channels.forEach((ch) => {
+        if (ch.enabled) {
+          ch.registerPackage = device.id
+          ch.heartbeatPackage = device.id
+          if (ch.protocol === "mqtt") {
+            ch.subscribeTopic = `/server/coo/${device.id}`
+            ch.publishTopic   = `/dev/coo/${device.id}`
+            ch.clientID = device.id
+          }
+        }
+      })
+    },
+    { immediate: true }
+)
+
+
+// ================== 事件处理 ==================
 const handleProtocolChange = () => {
   const ch = currentChannel.value;
   if (!ch.enabled) return;
@@ -215,15 +247,14 @@ const handleProtocolChange = () => {
     ch.username = "device";
     ch.password = "11223344";
     ch.subscribeTopic = `/server/coo/${props.device.id}`;
-    ch.publishTopic = `/dev/coo/${props.device.id}`;
-    ch.clientID = "deviceClient";
+    ch.publishTopic   = `/dev/coo/${props.device.id}`;
+    ch.clientID       = props.device.id;
     ch.QOS = "0";
     ch.PubRetain = false;
     ch.lastWillMessage = "";
   }
 }
 
-// 启用/禁用通道
 const handleEnableChange = (enabled: boolean) => {
   const ch = currentChannel.value;
   if (!enabled) {

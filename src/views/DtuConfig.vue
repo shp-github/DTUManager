@@ -20,7 +20,7 @@
       <el-tabs v-model="activeTab" class="tabs-underline" type="card">
         <el-tab-pane label="基本信息" name="basic" />
         <el-tab-pane label="接口" name="interface" />
-        <el-tab-pane label="网络链接" name="network" />
+        <el-tab-pane label="网络通道" name="networkChannels" />
         <el-tab-pane label="Modbus" name="modbus" />
         <el-tab-pane label="场景配置" name="scene" />
       </el-tabs>
@@ -35,8 +35,8 @@
         <el-tab-pane label="接口" name="interface">
           <InterfaceConfig v-model="allConfig.interface" />
         </el-tab-pane>
-        <el-tab-pane label="网络链接" name="network">
-          <NetworkConfig v-model="allConfig.network" :device="device" />
+        <el-tab-pane label="网络通道" name="networkChannels">
+          <NetworkConfig v-model="allConfig.networkChannels" :device="device" />
         </el-tab-pane>
         <el-tab-pane label="Modbus" name="modbus">
           <ModbusConfig v-model="allConfig.modbus" />
@@ -73,7 +73,7 @@ const allConfig = reactive({
   basic: {
   },
   interface: [],
-  network: {},
+  networkChannels: [],
   modbus: {},
   scene: {}
 })

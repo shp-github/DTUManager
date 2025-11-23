@@ -22,7 +22,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openChildWindow: (page: string) => ipcRenderer.invoke('open-win', page),
     onDeviceDiscovered: (callback: (devices: any[]) => void) => ipcRenderer.on('udp-device-discovered', (_, devices) => callback(devices)),
     sendConfig: (payload: { ip: string; config: any }) => ipcRenderer.invoke('sendConfig', payload),
-})
+    saveFile: (fileName, fileData) => ipcRenderer.invoke('save-file', { fileName, fileData }),
+    getFileList: () => ipcRenderer.invoke('get-file-list'),
+    sendUpgradeCommand: (deviceIp, fileName, serverInfo) => ipcRenderer.invoke('send-upgrade-command', { deviceIp, fileName, serverInfo }),})
 
 /**
  * ========= 页面加载动画 =========

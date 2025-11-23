@@ -1,9 +1,11 @@
-import { app, BrowserWindow, shell, ipcMain, Menu,globalShortcut  } from 'electron'
+import { app, BrowserWindow, shell, ipcMain, Menu, globalShortcut } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'path'
 import os from 'os'
 import dgram from 'dgram'
+import fileServer from './fileServer';
+import fs from 'fs';
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -98,50 +100,6 @@ function createWindow() {
     Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate))
 }
 
-app.whenReady().then(createWindow)
-
-app.on('window-all-closed', () => {
-    win = null
-    if (process.platform !== 'darwin') app.quit()
-})
-
-app.on('second-instance', () => {
-    if (win) {
-        if (win.isMinimized()) win.restore()
-        win.focus()
-    }
-})
-
-app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-})
-
-//快捷键打开控制台
-app.whenReady().then(() => {
-    globalShortcut.register('CommandOrControl+Shift+I', () => {
-        win?.webContents.openDevTools()
-    })
-})
-
-// 打开子窗口示例
-ipcMain.handle('open-win', (_, arg) => {
-    const childWindow = new BrowserWindow({
-        width: 800,
-        height: 600,
-        webPreferences: {
-            preload,
-            nodeIntegration: false,
-            contextIsolation: true,
-        }
-    })
-
-    if (VITE_DEV_SERVER_URL) {
-        childWindow.loadURL(`${VITE_DEV_SERVER_URL}#${arg}`)
-    } else {
-        childWindow.loadFile(indexHtml, { hash: arg })
-    }
-})
-
 // =================== UDP 模块 ===================
 const UDP_DISCOVERY_PORT = 4210
 const UDP_CONFIG_PORT = 4211
@@ -155,7 +113,6 @@ udpServer.on('message', (msg, rinfo) => {
         const payload = JSON.parse(msg.toString())
 
         if (payload.type === 'discover') {
-
             const id = payload.id || rinfo.address
 
             // 更新设备列表
@@ -186,10 +143,12 @@ udpServer.on('message', (msg, rinfo) => {
     }
 })
 
-
+// 启动 UDP 服务器
 udpServer.bind(UDP_DISCOVERY_PORT, () => {
     console.log(`✅ Listening UDP discovery port ${UDP_DISCOVERY_PORT}`)
 })
+
+// =================== IPC 处理器 ===================
 
 // 渲染进程获取设备列表
 ipcMain.handle('getDevices', async () => {
@@ -236,8 +195,7 @@ ipcMain.handle('save-config', async (_event, payload) => {
     }
 })
 
-// =================== 优化后的读取设备配置 ===================
-// =================== 优化后的读取设备配置（带调试日志） ===================
+// 优化后的读取设备配置（带调试日志）
 ipcMain.handle('read-device-config', async (_event, device) => {
     if (!device || !device.ip) {
         console.error('[READ CONFIG] 无效的 device 对象:', device)
@@ -299,3 +257,186 @@ ipcMain.handle('read-device-config', async (_event, device) => {
     })
 })
 
+// 打开子窗口示例
+ipcMain.handle('open-win', (_, arg) => {
+    const childWindow = new BrowserWindow({
+        width: 800,
+        height: 600,
+        webPreferences: {
+            preload,
+            nodeIntegration: false,
+            contextIsolation: true,
+        }
+    })
+
+    if (VITE_DEV_SERVER_URL) {
+        childWindow.loadURL(`${VITE_DEV_SERVER_URL}#${arg}`)
+    } else {
+        childWindow.loadFile(indexHtml, { hash: arg })
+    }
+})
+
+
+// 添加文件保存的 IPC 处理器
+ipcMain.handle('save-file', async (event, { fileName, fileData }: { fileName: string; fileData: ArrayBuffer }) => {
+    try {
+        const filesDir = path.join(process.cwd(), 'files');
+
+        // 确保 files 目录存在
+        if (!fs.existsSync(filesDir)) {
+            fs.mkdirSync(filesDir, { recursive: true });
+        }
+
+        const filePath = path.join(filesDir, fileName);
+
+        // 将 ArrayBuffer 转换为 Buffer 并写入文件
+        const buffer = Buffer.from(fileData);
+        fs.writeFileSync(filePath, buffer);
+
+        console.log(`✅ 文件已保存: ${filePath}`);
+        return { success: true, path: filePath };
+    } catch (error: any) {
+        console.error('❌ 文件保存失败:', error);
+        return { success: false, error: error.message };
+    }
+});
+
+// 获取文件列表的 IPC 处理器（可选，用于显示已上传的文件）
+ipcMain.handle('get-file-list', async () => {
+    try {
+        const filesDir = path.join(process.cwd(), 'files');
+
+        if (!fs.existsSync(filesDir)) {
+            return { success: true, files: [] };
+        }
+
+        const files = fs.readdirSync(filesDir);
+        return { success: true, files };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+});
+
+// 设备升级 IPC 处理器 - 提供完整下载地址
+ipcMain.handle('send-upgrade-command', async (event, { deviceIp, fileName, serverInfo }) => {
+    try {
+        const sock = dgram.createSocket('udp4');
+
+        // 获取本机所有网络地址
+        const addresses = getNetworkAddresses();
+
+        // 构建完整的下载 URL（使用第一个可用的局域网 IP）
+        const localIp = addresses[0] || 'localhost';
+        const downloadUrl = `http://${localIp}:${serverInfo.port}/download/${fileName}`;
+
+        // 构建升级命令消息
+        const upgradeMessage = {
+            type: 'upgrade',
+            fileName: fileName,
+            downloadUrl: downloadUrl,
+            fileSize: serverInfo.fileSize, // 可选：文件大小
+            timestamp: Date.now(),
+            serverInfo: {
+                ip: localIp,
+                port: serverInfo.port
+            }
+        };
+
+        const msg = Buffer.from(JSON.stringify(upgradeMessage));
+
+        return new Promise((resolve, reject) => {
+            sock.send(msg, UDP_CONFIG_PORT, deviceIp, (err) => {
+                sock.close();
+                if (err) {
+                    reject(err);
+                } else {
+                    console.log(`✅ 升级命令已发送到设备 ${deviceIp}`);
+                    console.log(`📥 下载地址: ${downloadUrl}`);
+                    resolve({
+                        success: true,
+                        downloadUrl: downloadUrl,
+                        serverIp: localIp
+                    });
+                }
+            });
+        });
+
+    } catch (error: any) {
+        console.error('❌ 发送升级命令失败:', error);
+        return { success: false, error: error.message };
+    }
+});
+
+// 获取本机网络地址函数（确保这个函数存在）
+function getNetworkAddresses(): string[] {
+    const os = require('os');
+    const networkInterfaces = os.networkInterfaces();
+    const addresses: string[] = [];
+
+    for (const interfaceName of Object.keys(networkInterfaces)) {
+        for (const netInterface of networkInterfaces[interfaceName]) {
+            if (netInterface.family === 'IPv4' && !netInterface.internal) {
+                addresses.push(netInterface.address);
+            }
+        }
+    }
+
+    return addresses;
+}
+
+
+
+// =================== 应用生命周期 ===================
+
+app.whenReady().then(async () => {
+    console.log('🎯 Electron 应用启动中...');
+
+    // 创建主窗口
+    createWindow();
+
+    // 自动启动文件服务器
+    const result = await fileServer.start(8080);
+
+    if (!result.success) {
+        console.error('❌ 文件服务器启动失败:', result.error);
+        // 如果默认端口被占用，尝试其他端口
+        for (let port = 8081; port <= 8090; port++) {
+            const retryResult = await fileServer.start(port);
+            if (retryResult.success) {
+                break;
+            }
+        }
+    }
+
+    // 注册快捷键
+    globalShortcut.register('CommandOrControl+Shift+I', () => {
+        win?.webContents.openDevTools()
+    })
+})
+
+// 应用事件监听器
+app.on('window-all-closed', () => {
+    fileServer.stop();
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
+})
+
+app.on('activate', () => {
+    // 在 macOS 上，当点击 dock 图标且没有其他窗口打开时，
+    // 通常在应用程序中重新创建一个窗口
+    if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+    }
+})
+
+app.on('before-quit', () => {
+    fileServer.stop();
+})
+
+app.on('second-instance', () => {
+    if (win) {
+        if (win.isMinimized()) win.restore()
+        win.focus()
+    }
+})

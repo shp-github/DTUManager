@@ -10,7 +10,6 @@
           </el-form-item>
 
           <el-form-item label="启用接口">
-            {{port.enabled}}
             <el-switch v-model="port.enabled" active-text="启用" inactive-text="禁用" />
           </el-form-item>
 

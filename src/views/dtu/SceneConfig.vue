@@ -61,8 +61,8 @@
           <!-- 条件关系 -->
           <el-form-item label="条件关系">
             <el-radio-group v-model="scene.logicOperator" class="condition-radio">
-              <el-radio-button label="AND">并且</el-radio-button>
-              <el-radio-button label="OR">或者</el-radio-button>
+              <el-radio-button value="AND">并且</el-radio-button>
+              <el-radio-button value="OR">或者</el-radio-button>
             </el-radio-group>
           </el-form-item>
 
@@ -137,7 +137,7 @@
               :key="switchOption.id"
           >
             <el-checkbox-group v-model="scene.selectedSwitches">
-              <el-checkbox :label="switchOption.id">
+              <el-checkbox :value="switchOption.id">
                 <el-icon :size="28"><i :class="switchOption.icon"></i></el-icon>
                 <span class="switch-label">{{ switchOption.name }}</span>
               </el-checkbox>
@@ -147,8 +147,8 @@
                 v-model="scene.switchStates[sIndex]"
                 class="switch-radio"
             >
-              <el-radio-button label="on">开启</el-radio-button>
-              <el-radio-button label="off">关闭</el-radio-button>
+              <el-radio-button value="on">开启</el-radio-button>
+              <el-radio-button value="off">关闭</el-radio-button>
             </el-radio-group>
           </div>
         </div>

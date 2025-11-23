@@ -30,5 +30,7 @@ npx electron-builder --win --x64
 
 
 
+yarn install
+
 
 
