@@ -176,7 +176,7 @@ ipcMain.handle('save-config', async (_event, payload) => {
             const device = devices.get(deviceId)
             if (device) {
                 const sock = dgram.createSocket('udp4')
-                const msg = Buffer.from(JSON.stringify({ type: 'config', ...(config || {}) }))
+                const msg = Buffer.from(JSON.stringify({ type: 'config', ...(config || {}) as object }))
                 await new Promise<void>((resolve, reject) => {
                     sock.send(msg, UDP_CONFIG_PORT, device.ip, (err) => {
                         sock.close()
