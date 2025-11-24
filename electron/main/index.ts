@@ -282,7 +282,6 @@ ipcMain.handle('open-win', (_, arg) => {
     }
 })
 
-
 // 添加文件保存的 IPC 处理器
 ipcMain.handle('save-file', async (event, { fileName, fileData }: { fileName: string; fileData: ArrayBuffer }) => {
     try {
@@ -373,14 +372,61 @@ ipcMain.handle('send-upgrade-command', async (event, { deviceIp, fileName, serve
     }
 });
 
+// 修复 MQTT 发布处理器 - 兼容两种参数格式
+ipcMain.handle('mqtt-publish', async (_event, params) => {
 
-// 添加 MQTT 相关的 IPC 处理器
-ipcMain.handle('mqtt-publish', async (_event, { topic, message, options }) => {
-    if (mqttServer) {
-        const success = mqttServer.publish(topic, message, options);
-        return { success };
+    params = params.topic
+
+    let topic, message, options;
+
+    if (params && typeof params === 'object') {
+        topic = params.topic;
+        message = params.message;
+        options = params.options;
     }
-    return { success: false, error: 'MQTT服务器未运行' };
+
+    console.log('🔍 MQTT发布调试 - 解析后的参数:');
+    console.log('  Topic:', topic, 'Type:', typeof topic);
+    console.log('  Message:', message, 'Type:', typeof message);
+    console.log('  Options:', options);
+
+    if (!mqttServer) {
+        console.error('❌ MQTT服务器未运行');
+        return false;
+    }
+
+    try {
+        // 严格的 topic 类型检查和转换
+        if (topic === null || topic === undefined) {
+            console.error('❌ Topic 为 null 或 undefined');
+            return false;
+        }
+
+        const safeTopic = String(topic).trim();
+        if (!safeTopic) {
+            console.error('❌ Topic 为空字符串');
+            return false;
+        }
+
+        let safeMessage;
+        if (typeof message === 'string') {
+            safeMessage = message;
+        } else if (typeof message === 'object') {
+            safeMessage = JSON.stringify(message);
+        } else {
+            safeMessage = String(message);
+        }
+
+        console.log('✅ 转换后的安全参数:');
+        console.log('  Safe Topic:', safeTopic, 'Type:', typeof safeTopic);
+        console.log('  Safe Message:', safeMessage, 'Type:', typeof safeMessage);
+
+        return mqttServer.publish(safeTopic, safeMessage, options);
+
+    } catch (error) {
+        console.error('💥 MQTT发布异常:', error);
+        return false;
+    }
 });
 
 ipcMain.handle('mqtt-get-status', async () => {
@@ -413,10 +459,8 @@ ipcMain.handle('mqtt-request-config', async (_event, deviceId) => {
     return { success: false, error: 'MQTT服务器未运行' };
 });
 
-
-// 获取本机网络地址函数（确保这个函数存在）
+// 获取本机网络地址函数
 function getNetworkAddresses(): string[] {
-    const os = require('os');
     const networkInterfaces = os.networkInterfaces();
     const addresses: string[] = [];
 
@@ -430,8 +474,6 @@ function getNetworkAddresses(): string[] {
 
     return addresses;
 }
-
-
 
 // =================== 应用生命周期 ===================
 
@@ -454,7 +496,6 @@ app.whenReady().then(async () => {
             }
         }
     }
-
 
     // 启动 MQTT 服务器
     try {
@@ -494,16 +535,6 @@ app.whenReady().then(async () => {
     globalShortcut.register('CommandOrControl+Shift+I', () => {
         win?.webContents.openDevTools()
     })
-
-
-    // 注册快捷键
-    globalShortcut.register('CommandOrControl+Shift+I', () => {
-        win?.webContents.openDevTools()
-    })
-
-
-
-
 })
 
 // 应用事件监听器

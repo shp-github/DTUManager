@@ -96,18 +96,28 @@ class MQTTServer extends EventEmitter {
         });
 
         this.broker.on('publish', (packet: any, client: any) => {
-            const payloadStr = packet.payload.toString();
+            try {
+                const payloadStr = packet.payload.toString();
 
-            if (client) {
-                const clientInfo = this.clients.get(client.id);
-                console.log(`📨 收到来自 ${client.id} 的消息: ${packet.topic}`);
-                this.emit('messagePublished', {
-                    client: clientInfo,
-                    topic: packet.topic,
-                    payload: payloadStr,
-                    qos: packet.qos,
-                    retain: packet.retain
-                });
+                // 验证 topic 是字符串
+                if (typeof packet.topic !== 'string') {
+                    console.error('❌ 收到无效的 topic 类型:', typeof packet.topic, packet.topic);
+                    return;
+                }
+
+                if (client) {
+                    const clientInfo = this.clients.get(client.id);
+                    console.log(`📨 收到来自 ${client.id} 的消息: ${packet.topic}`);
+                    this.emit('messagePublished', {
+                        client: clientInfo,
+                        topic: packet.topic,
+                        payload: payloadStr,
+                        qos: packet.qos,
+                        retain: packet.retain
+                    });
+                }
+            } catch (error) {
+                console.error('❌ 处理发布消息时出错:', error);
             }
         });
 
@@ -229,34 +239,80 @@ class MQTTServer extends EventEmitter {
         }
 
         try {
-            const payload = typeof message === 'string' ? message : JSON.stringify(message);
+            // 双重验证 - 确保 topic 是字符串
+            if (typeof topic !== 'string') {
+                console.error('❌ MQTTServer: topic 不是字符串, 收到:', typeof topic, topic);
+                return false;
+            }
 
+            // 修剪 topic
+            const safeTopic = topic.trim();
+            if (!safeTopic) {
+                console.error('❌ MQTTServer: topic 为空');
+                return false;
+            }
+
+            // 处理消息内容
+            let payload: string;
+            if (typeof message === 'string') {
+                payload = message;
+            } else if (typeof message === 'object') {
+                try {
+                    payload = JSON.stringify(message);
+                } catch (e) {
+                    payload = String(message);
+                }
+            } else {
+                payload = String(message);
+            }
+
+            console.log(`📤 MQTTServer 发布消息: ${safeTopic}`, payload.substring(0, 100) + (payload.length > 100 ? '...' : ''));
+
+            // 发布消息
             this.broker.publish({
-                topic: topic,
+                topic: safeTopic,
                 payload: payload,
                 qos: options.qos || 0,
                 retain: options.retain || false
             }, (error) => {
                 if (error) {
-                    console.error(`发布消息到主题 ${topic} 失败:`, error);
+                    console.error(`❌ 发布消息到主题 ${safeTopic} 失败:`, error);
+                } else {
+                    console.log(`✅ 消息发布成功: ${safeTopic}`);
                 }
             });
 
             return true;
 
         } catch (error) {
-            console.error('发布消息时出错:', error);
+            console.error('💥 MQTTServer 发布消息时出错:', error);
             return false;
         }
     }
 
     sendConfigToDevice(deviceId: string, config: any): boolean {
-        const topic = `config/${deviceId}/set`;
+        // 确保 deviceId 是字符串
+        const safeDeviceId = String(deviceId || '').trim();
+        if (!safeDeviceId) {
+            console.error('❌ sendConfigToDevice: deviceId 为空');
+            return false;
+        }
+
+        const topic = `config/${safeDeviceId}/set`;
+        console.log(`📤 发送配置到设备 ${safeDeviceId}, 主题: ${topic}`);
         return this.publish(topic, config, { qos: 1 });
     }
 
     requestDeviceConfig(deviceId: string): boolean {
-        const topic = `config/${deviceId}/get`;
+        // 确保 deviceId 是字符串
+        const safeDeviceId = String(deviceId || '').trim();
+        if (!safeDeviceId) {
+            console.error('❌ requestDeviceConfig: deviceId 为空');
+            return false;
+        }
+
+        const topic = `config/${safeDeviceId}/get`;
+        console.log(`📤 请求设备配置 ${safeDeviceId}, 主题: ${topic}`);
         return this.publish(topic, {
             timestamp: Date.now(),
             type: 'config_request'
@@ -264,7 +320,15 @@ class MQTTServer extends EventEmitter {
     }
 
     sendRebootCommand(deviceId: string): boolean {
-        const topic = `cmd/${deviceId}/reboot`;
+        // 确保 deviceId 是字符串
+        const safeDeviceId = String(deviceId || '').trim();
+        if (!safeDeviceId) {
+            console.error('❌ sendRebootCommand: deviceId 为空');
+            return false;
+        }
+
+        const topic = `cmd/${safeDeviceId}/reboot`;
+        console.log(`📤 发送重启命令到设备 ${safeDeviceId}, 主题: ${topic}`);
         return this.publish(topic, {
             timestamp: Date.now(),
             command: 'reboot'
