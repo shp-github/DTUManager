@@ -24,7 +24,44 @@ contextBridge.exposeInMainWorld('electronAPI', {
     sendConfig: (payload: { ip: string; config: any }) => ipcRenderer.invoke('sendConfig', payload),
     saveFile: (fileName, fileData) => ipcRenderer.invoke('save-file', { fileName, fileData }),
     getFileList: () => ipcRenderer.invoke('get-file-list'),
-    sendUpgradeCommand: (deviceIp, fileName, serverInfo) => ipcRenderer.invoke('send-upgrade-command', { deviceIp, fileName, serverInfo }),})
+    sendUpgradeCommand: (deviceIp, fileName, serverInfo) => ipcRenderer.invoke('send-upgrade-command', { deviceIp, fileName, serverInfo }),
+
+    // MQTT 相关 API
+    mqttPublish: (topic, message, options) =>
+        ipcRenderer.invoke('mqtt-publish', { topic, message, options }),
+
+    mqttGetStatus: () =>
+        ipcRenderer.invoke('mqtt-get-status'),
+
+    mqttGetClients: () =>
+        ipcRenderer.invoke('mqtt-get-clients'),
+
+    mqttSendConfig: (deviceId, config) =>
+        ipcRenderer.invoke('mqtt-send-config', { deviceId, config }),
+
+    mqttRequestConfig: (deviceId) =>
+        ipcRenderer.invoke('mqtt-request-config', deviceId),
+
+    // MQTT 事件监听
+    onMqttClientConnected: (callback) =>
+        ipcRenderer.on('mqtt-client-connected', callback),
+
+    onMqttClientDisconnected: (callback) =>
+        ipcRenderer.on('mqtt-client-disconnected', callback),
+
+    onMqttMessagePublished: (callback) =>
+        ipcRenderer.on('mqtt-message-published', callback),
+
+    removeMqttListeners: () => {
+        ipcRenderer.removeAllListeners('mqtt-client-connected');
+        ipcRenderer.removeAllListeners('mqtt-client-disconnected');
+        ipcRenderer.removeAllListeners('mqtt-message-published');
+    }
+
+
+})
+
+
 
 /**
  * ========= 页面加载动画 =========

@@ -21,13 +21,14 @@
   "type": "module",
   "scripts": {
     "install": "yarn install",
-    "dev": "vite",
+    "dev": "chcp 65001 && vite",
     "preview": "vite preview",
     "build": "vite build && tsc",
     "build:win": "npm run build && electron-builder --win --x64",
     "prebuild": "tsc"
   },
   "devDependencies": {
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-vue": "^5.2.4",
     "electron": "^29.4.6",
     "electron-builder": "^24.13.3",
@@ -41,9 +42,12 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
+    "aedes": "^0.51.3",
     "element-plus": "^2.11.7",
     "express": "^5.1.0",
-    "vue-router": "^4.6.3"
+    "mqtt": "^5.14.1",
+    "vue-router": "^4.6.3",
+    "ws": "^8.18.3"
   },
   "build": {
     "appId": "com.yourcompany.dtu",

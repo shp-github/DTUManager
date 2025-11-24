@@ -7,6 +7,12 @@ import dgram from 'dgram'
 import fileServer from './fileServer';
 import fs from 'fs';
 
+// 在现有导入的基础上添加
+import MQTTServer from './mqtt-server'
+
+// 在现有变量声明后添加
+let mqttServer: MQTTServer | null = null
+
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -367,6 +373,47 @@ ipcMain.handle('send-upgrade-command', async (event, { deviceIp, fileName, serve
     }
 });
 
+
+// 添加 MQTT 相关的 IPC 处理器
+ipcMain.handle('mqtt-publish', async (_event, { topic, message, options }) => {
+    if (mqttServer) {
+        const success = mqttServer.publish(topic, message, options);
+        return { success };
+    }
+    return { success: false, error: 'MQTT服务器未运行' };
+});
+
+ipcMain.handle('mqtt-get-status', async () => {
+    if (mqttServer) {
+        return mqttServer.getStatus();
+    }
+    return { isRunning: false };
+});
+
+ipcMain.handle('mqtt-get-clients', async () => {
+    if (mqttServer) {
+        return mqttServer.getConnectedClients();
+    }
+    return [];
+});
+
+ipcMain.handle('mqtt-send-config', async (_event, { deviceId, config }) => {
+    if (mqttServer) {
+        const success = mqttServer.sendConfigToDevice(deviceId, config);
+        return { success };
+    }
+    return { success: false, error: 'MQTT服务器未运行' };
+});
+
+ipcMain.handle('mqtt-request-config', async (_event, deviceId) => {
+    if (mqttServer) {
+        const success = mqttServer.requestDeviceConfig(deviceId);
+        return { success };
+    }
+    return { success: false, error: 'MQTT服务器未运行' };
+});
+
+
 // 获取本机网络地址函数（确保这个函数存在）
 function getNetworkAddresses(): string[] {
     const os = require('os');
@@ -408,15 +455,63 @@ app.whenReady().then(async () => {
         }
     }
 
+
+    // 启动 MQTT 服务器
+    try {
+        mqttServer = new MQTTServer({tcpPort: 1883});
+
+        const mqttResult = await mqttServer.start();
+
+        if (mqttResult.success) {
+            console.log('✅ MQTT服务器启动成功');
+
+            // 监听MQTT事件并转发到渲染进程
+            mqttServer.on('clientConnected', (clientInfo) => {
+                console.log(`📱 设备连接: ${clientInfo.id}`);
+                win?.webContents.send('mqtt-client-connected', clientInfo);
+            });
+
+            mqttServer.on('clientDisconnected', (clientInfo) => {
+                console.log(`📱 设备断开: ${clientInfo.id}`);
+                win?.webContents.send('mqtt-client-disconnected', clientInfo);
+            });
+
+            mqttServer.on('messagePublished', (message) => {
+                // 只转发来自客户端的消息，不转发服务器自己发布的消息
+                if (message.client) {
+                    win?.webContents.send('mqtt-message-published', message);
+                }
+            });
+
+        } else {
+            console.error('❌ MQTT服务器启动失败:', mqttResult.error);
+        }
+    } catch (error) {
+        console.error('❌ 创建MQTT服务器时出错:', error);
+    }
+
     // 注册快捷键
     globalShortcut.register('CommandOrControl+Shift+I', () => {
         win?.webContents.openDevTools()
     })
+
+
+    // 注册快捷键
+    globalShortcut.register('CommandOrControl+Shift+I', () => {
+        win?.webContents.openDevTools()
+    })
+
+
+
+
 })
 
 // 应用事件监听器
 app.on('window-all-closed', () => {
     fileServer.stop();
+    if (mqttServer) {
+        mqttServer.stop();
+    }
     if (process.platform !== 'darwin') {
         app.quit();
     }
@@ -432,6 +527,9 @@ app.on('activate', () => {
 
 app.on('before-quit', () => {
     fileServer.stop();
+    if (mqttServer) {
+        mqttServer.stop();
+    }
 })
 
 app.on('second-instance', () => {
