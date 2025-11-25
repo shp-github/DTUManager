@@ -341,10 +341,7 @@ ipcMain.handle('send-upgrade-command', async (event, { deviceIp, fileName, serve
             downloadUrl: downloadUrl,
             fileSize: serverInfo.fileSize, // 可选：文件大小
             timestamp: Date.now(),
-            serverInfo: {
-                ip: localIp,
-                port: serverInfo.port
-            }
+            ip: localIp
         };
 
         const msg = Buffer.from(JSON.stringify(upgradeMessage));
