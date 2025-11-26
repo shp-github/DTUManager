@@ -512,15 +512,16 @@ const executeQuickCommand = (cmd: any) => {
   console.log('发送消息主题：',topic)
   console.log('发送消息主题：',typeof topic)
 
-  window.electronAPI.mqttPublish({
+  const success  =  window.electronAPI.mqttPublish({
     topic: topic,
     message: cmd.message,
     options: { qos: 1 }
-  }).then(success => {
-    if (success) {
-      addTerminalLog('send', `快速命令: ${cmd.name} -> ${topic}`)
-    }
-  })
+  });
+
+  if (success) {
+    addTerminalLog('send', `快速命令: ${cmd.name} -> ${topic}`)
+  }
+
 }
 
 // 添加终端日志

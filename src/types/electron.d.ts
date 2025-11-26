@@ -78,6 +78,8 @@ declare global {
 
             // UDP 设备发现事件
             onUdpDeviceDiscovered: (callback: (devices: DeviceInfo[]) => void) => void
+            mqttPublish(param: { topic: string; message: string; options: { qos: number } }): any;
+            onMqttMessagePublished(handleMqttMessage: (event: any, data: any) => void): void;
         }
     }
 }

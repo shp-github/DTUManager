@@ -341,7 +341,10 @@ ipcMain.handle('send-upgrade-command', async (event, { deviceIp, fileName, serve
             downloadUrl: downloadUrl,
             fileSize: serverInfo.fileSize, // 可选：文件大小
             timestamp: Date.now(),
-            ip: localIp
+            ip: localIp,
+            mqttPort:1883,
+            mqttUsername: "device",
+            mqttPassword: "123456"
         };
 
         const msg = Buffer.from(JSON.stringify(upgradeMessage));
