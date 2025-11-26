@@ -404,6 +404,10 @@ const formatRuntime = (seconds: number) => {
 
 // 打开终端对话框
 const openTerminalDialog = (device: any) => {
+
+  console.log('通知设备连接mqtt:', device.ip)
+  window.electronAPI.connectMqtt(device.ip)
+
   currentDevice.value = device
   terminalDialogVisible.value = true
   isTerminalConnected.value = false
@@ -469,7 +473,7 @@ const sendTerminalMessage = async () => {
   if (!terminalInput.value.trim() || !currentDevice.value) return
 
   const input = terminalInput.value.trim()
-  // 如果没有指定主题，使用默认主题
+
   let topic = `/server/coo/${currentDevice.value.id}`
   let message = input
 

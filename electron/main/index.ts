@@ -372,6 +372,51 @@ ipcMain.handle('send-upgrade-command', async (event, { deviceIp, fileName, serve
     }
 });
 
+// 让设备连接mqtt服务
+ipcMain.handle('connect-mqtt', async (event, deviceIp) => {
+    console.log(`收到 MQTT 连接请求: ${deviceIp}`);
+
+    return new Promise((resolve, reject) => {
+        const sock = dgram.createSocket('udp4');
+
+        // 获取本机所有网络地址
+        const addresses = getNetworkAddresses();
+
+        // 构建完整的下载 URL（使用第一个可用的局域网 IP）
+        const localIp = addresses[0] || 'localhost';
+
+        // 构建连接命令
+        const connectCommand = {
+            type: 'connect-mqtt',
+            ip: localIp
+        };
+
+        const message = Buffer.from(JSON.stringify(connectCommand));
+
+        // 设置超时
+        const timeout = setTimeout(() => {
+            sock.close();
+            reject(new Error('发送命令超时（5秒）'));
+        }, 5000);
+
+        sock.send(message, UDP_CONFIG_PORT, deviceIp, (err) => {
+            clearTimeout(timeout);
+            sock.close();
+            if (err) {
+                console.error('发送 MQTT 连接命令失败:', err);
+                reject(new Error(`网络错误: ${err.message}`));
+            }
+        });
+
+        // 处理 socket 错误
+        sock.on('error', (err) => {
+            clearTimeout(timeout);
+            console.error('UDP socket 错误:', err);
+            reject(new Error(`网络错误: ${err.message}`));
+        });
+    });
+});
+
 // 修复 MQTT 发布处理器 - 兼容两种参数格式
 ipcMain.handle('mqtt-publish', async (_event, params) => {
 

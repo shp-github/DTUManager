@@ -61,6 +61,7 @@ declare global {
                 error?: string
             }>
 
+            connectMqtt:(deviceIp: string)=>Promise<{ success: boolean; }>
 
             // 窗口管理
             openChildWindow: (page: string) => Promise<void>

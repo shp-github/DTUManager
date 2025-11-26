@@ -5,6 +5,10 @@
       <div class="header">
         <h2 class="title">DTU 配置 - {{ device?.id }}</h2>
         <div class="actions">
+          <el-button class="action-btn" type="default" @click="loadDeviceConfig">
+            <el-icon><ArrowLeft /></el-icon>
+             读取配置
+          </el-button>
           <el-button class="action-btn" type="default" @click="goBack">
             <el-icon><ArrowLeft /></el-icon>
             返回
@@ -78,14 +82,68 @@ const allConfig = reactive({
   scene: {}
 })
 
+// 通知设备连接mqtt
+const connectMqtt = async () => {
+  if (!device.value) return
+  try {
+
+    console.log('通知设备连接mqtt:', device.value.ip)
+    const config = await window.electronAPI.connectMqtt(device.value.ip)
+    //console.log('让设备连接mqtt:\n', JSON.stringify(config, null, 2))
+
+    //读取设备配置
+    loadDeviceConfig();
+
+  } catch (err) {
+    console.error('[ERROR] 通知设备连接mqtt:', err)
+    //ElMessage.error('[ERROR] 通知设备连接mqtt' + err)
+  }
+}
+
 // 读取设备配置
 const loadDeviceConfig = async () => {
   if (!device.value) return
   try {
-    const config = await window.electronAPI.readDeviceConfig(JSON.parse(JSON.stringify(device.value)))
-    if (config) Object.assign(allConfig, config)
 
-    console.log('读取配置:\n', JSON.stringify(config, null, 2))
+    if (!device.value || !device.value.id) {
+      console.error("设备ID为空，无法发送读取配置命令")
+      return
+    }
+
+    const deviceId = device.value.id
+
+// 下发主题
+    const topic = `/server/cmd/${deviceId}`
+
+// 构建 JSON 消息
+    const payload = {
+      type: "read_config",
+      deviceId: deviceId,
+      timestamp: Date.now()
+    }
+
+    const message = JSON.stringify(payload)
+
+    console.log(
+        `%c[READ CONFIG] 向设备下发读取配置命令\n` +
+        `  ➤ 设备ID: ${deviceId}\n` +
+        `  ➤ Topic: ${topic}\n` +
+        `  ➤ Payload: ${message}`,
+        "color:#4CAF50;font-weight:bold;"
+    )
+
+    // 通过 MQTT 发布消息
+    const success = await window.electronAPI.mqttPublish({
+      topic: topic,
+      message: message,
+      options: { qos: 1 }
+    })
+
+    if (success) {
+      ElMessage.success("读取配置成功")
+    } else {
+      ElMessage.success("读取配置失败")
+    }
 
   } catch (err) {
     console.error('[ERROR] 读取设备配置失败:', err)
@@ -96,7 +154,10 @@ const loadDeviceConfig = async () => {
 // 每秒更新运行时间
 let runtimeTimer: number
 onMounted(() => {
-  loadDeviceConfig()
+
+  //通知设备连接mqtt
+  connectMqtt();
+
   runtimeTimer = window.setInterval(() => {
     if (device.value && device.value.runtime !== undefined) {
       device.value.runtime += 1
@@ -116,7 +177,6 @@ onBeforeUnmount(() => {
 // 返回
 const goBack = () => router.push({ name: 'DeviceList' })
 
-// 保存配置
 // 保存配置
 const saveConfig = async () => {
   if (!device.value) return

@@ -24,7 +24,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     sendConfig: (payload: { ip: string; config: any }) => ipcRenderer.invoke('sendConfig', payload),
     saveFile: (fileName, fileData) => ipcRenderer.invoke('save-file', { fileName, fileData }),
     getFileList: () => ipcRenderer.invoke('get-file-list'),
+
     sendUpgradeCommand: (deviceIp, fileName, serverInfo) => ipcRenderer.invoke('send-upgrade-command', { deviceIp, fileName, serverInfo }),
+
+    connectMqtt: (deviceIp) => ipcRenderer.invoke('connect-mqtt', deviceIp),
+
 
     // MQTT 相关 API
     mqttPublish: (topic, message, options) =>
