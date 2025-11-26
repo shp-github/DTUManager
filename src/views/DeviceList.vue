@@ -360,6 +360,9 @@ const submitUpgrade = async () => {
     selectedFile.value = null
     fileList.value = []
 
+    //打开终端串口
+    openTerminalDialog(currentDevice.value)
+
   } catch (error: any) {
     console.error('升级失败:', error)
     ElMessage.error(`升级失败: ${error.message}`)
