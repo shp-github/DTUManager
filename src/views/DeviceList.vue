@@ -235,9 +235,9 @@ const terminalOutput = ref<HTMLElement>()
 
 // 快速命令
 const quickCommands = ref([
-  { name: '获取配置', topic: `/server/coo`, message: '{"type":"get_config"}' },
-  { name: '重启设备', topic: `/server/coo`, message: '{"type":"reboot"}' },
-  { name: '设备信息', topic: `/server/coo`, message: '{"type":"get_info"}' },
+  { name: '获取配置', topic: `/server/cmd/`, message: '{"type":"get_config"}' },
+  { name: '重启设备', topic: `/server/cmd/`, message: '{"type":"reboot"}' },
+  { name: '设备信息', topic: `/server/cmd/`, message: '{"type":"get_info"}' },
   { name: '清空终端', topic: '', message: '', action: 'clear' }
 ])
 
@@ -511,10 +511,7 @@ const executeQuickCommand = (cmd: any) => {
   if (!currentDevice.value) return
 
   // 发布快速命令
-  const topic = cmd.topic.startsWith('/') ? cmd.topic : `/server/coo/${currentDevice.value.id}`
-
-  console.log('发送消息主题：',topic)
-  console.log('发送消息主题：',typeof topic)
+  const topic = cmd.topic ? cmd.topic + currentDevice.value.id : `/server/coo/${currentDevice.value.id}`
 
   const success  =  window.electronAPI.mqttPublish({
     topic: topic,
@@ -523,7 +520,7 @@ const executeQuickCommand = (cmd: any) => {
   });
 
   if (success) {
-    addTerminalLog('send', `快速命令: ${cmd.name} -> ${topic}`)
+    addTerminalLog('send', `快速命令: ${cmd.name} -> ${topic} ${cmd.message}`)
   }
 
 }

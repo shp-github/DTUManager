@@ -75,9 +75,9 @@ const terminalOutput = ref<HTMLElement>()
 
 // 快速命令
 const quickCommands = ref([
-  { name: '获取配置', topic: 'config/get', message: '{"type":"get_config"}' },
-  { name: '重启设备', topic: 'cmd/reboot', message: '{"type":"reboot"}' },
-  { name: '设备信息', topic: 'sys/info', message: '{"type":"get_info"}' },
+  { name: '获取配置', topic: '/service/cmd/', message: '{"type":"get_config"}' },
+  { name: '重启设备', topic: '/service/cmd/', message: '{"type":"reboot"}' },
+  { name: '设备信息', topic: '/service/cmd/', message: '{"type":"get_info"}' },
   { name: '清空终端', topic: '', message: '', action: 'clear' }
 ])
 
@@ -158,10 +158,16 @@ const sendTerminalMessage = async () => {
 
 // 执行快速命令
 const executeQuickCommand = (cmd: any) => {
+
+  console.log('快速命令：2222')
+
+
   if (cmd.action === 'clear') {
     clearTerminal()
     return
   }
+
+  console.log('快速命令：1111',JSON.stringify(cmd))
 
   // 发布快速命令
   const topic = cmd.topic.startsWith('/') ? cmd.topic : `/server/coo/${props.deviceId}`

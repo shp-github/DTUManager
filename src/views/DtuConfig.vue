@@ -112,14 +112,13 @@ const loadDeviceConfig = async () => {
 
     const deviceId = device.value.id
 
-// 下发主题
+    // 下发主题
     const topic = `/server/cmd/${deviceId}`
 
-// 构建 JSON 消息
+    // 构建 JSON 消息
     const payload = {
       type: "read_config",
-      deviceId: deviceId,
-      timestamp: Date.now()
+      deviceId: deviceId
     }
 
     const message = JSON.stringify(payload)
