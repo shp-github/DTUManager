@@ -567,6 +567,9 @@ app.whenReady().then(async () => {
                 if (message.client) {
                     win?.webContents.send('mqtt-message-published', message);
                 }
+                if (message.client) {
+                    win?.webContents.send('device-config-message', message);
+                }
             });
 
         } else {

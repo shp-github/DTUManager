@@ -56,6 +56,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onMqttMessagePublished: (callback) =>
         ipcRenderer.on('mqtt-message-published', callback),
 
+    deviceConfigMessage: (callback) =>
+        ipcRenderer.on('device-config-message', callback),
+
     removeMqttListeners: () => {
         ipcRenderer.removeAllListeners('mqtt-client-connected');
         ipcRenderer.removeAllListeners('mqtt-client-disconnected');

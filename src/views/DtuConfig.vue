@@ -11,6 +11,10 @@
             返回
           </el-button>
 
+          <el-button class="action-btn" type="primary" @click="connectMqtt">
+            通知连接
+          </el-button>
+
           <el-button class="action-btn" type="primary" @click="loadDeviceConfig">
             读取配置
           </el-button>
@@ -141,9 +145,71 @@ const handleMqttMessage = (event: any, data: any) => {
 
   console.log(`收到消息${topic}: ${payload}`)
 
-  if(topic === `/dev/cmd/${device.id}`) {
+  // 判断是否当前设备的消息
+  if (topic !== `/dev/cmd/${device.value.id}`) return
+
+
     console.log(`接收设备端配置: ${JSON.stringify(payload)}`)
+
+    //更新配置信息
+  let msg
+  try {
+    msg = typeof payload === 'string' ? JSON.parse(payload) : payload
+  } catch (e) {
+    console.error("JSON解析失败:", e)
+    return
   }
+
+  console.log("接收设备端配置:", msg)
+
+    // flag 用于区分模块
+    const flag = msg.flag
+    if (!flag) {
+      console.warn("无 flag 字段，忽略")
+      return
+    }
+
+    // 根据 flag 写入对应配置模块
+    switch (flag) {
+      case "interface":
+        // 接口配置（串口）
+        allConfig.interface = {
+          uart1: msg.uart1 || {},
+          uart2: msg.uart2 || {}
+        }
+        console.log("更新 interface 配置成功:", allConfig.interface)
+        break
+
+      case "network":
+        // 网络配置，例如 ip/subnet/gateway
+        allConfig.basic = {
+          ...allConfig.basic,
+          ...msg
+        }
+        console.log("更新 network 配置成功:", allConfig.basic)
+        break
+
+      case "channels":
+        // 网络通道列表
+        allConfig.networkChannels = msg.channels || []
+        console.log("更新 networkChannels 配置成功:", allConfig.networkChannels)
+        break
+
+      case "modbus":
+        // modbus 采集表
+        allConfig.modbus = msg.data || {}
+        console.log("更新 modbus 配置成功:", allConfig.modbus)
+        break
+
+      case "scene":
+        allConfig.scene = msg.data || {}
+        console.log("更新 scene 配置成功:", allConfig.scene)
+        break
+
+      default:
+        console.warn("未知 flag:", flag)
+        break
+    }
 
 }
 
@@ -156,7 +222,7 @@ onMounted(() => {
   connectMqtt();
 
   //监听设备消息
-  //window.electronAPI.onMqttMessagePublished(handleMqttMessage)
+  window.electronAPI.deviceConfigMessage(handleMqttMessage)
 
   runtimeTimer = window.setInterval(() => {
     if (device.value && device.value.runtime !== undefined) {
