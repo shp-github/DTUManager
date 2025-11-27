@@ -528,7 +528,7 @@ const executeQuickCommand = (cmd: any) => {
   }
 
   if (cmd.action === 'get_config') {
-    const modules = ['interface', 'network', 'channels'];
+    const modules = ['basic','interface', 'network', 'channels'];
     const delay = 200;
 
     modules.forEach((module, index) => {

@@ -117,7 +117,7 @@ const loadDeviceConfig = async () => {
     }
 
     const topic = `/server/cmd/${device.value.id}`
-    const modules = ['interface', 'network', 'channels'];
+    const modules = ['basic','interface', 'network', 'channels'];
     const delay = 200;
 
     modules.forEach((module, index) => {
@@ -143,15 +143,10 @@ const handleMqttMessage = (event: any, data: any) => {
 
   const { topic, payload, client } = data
 
-  console.log(`收到消息${topic}: ${payload}`)
-
   // 判断是否当前设备的消息
   if (topic !== `/dev/cmd/${device.value.id}`) return
 
 
-    console.log(`接收设备端配置: ${JSON.stringify(payload)}`)
-
-    //更新配置信息
   let msg
   try {
     msg = typeof payload === 'string' ? JSON.parse(payload) : payload
@@ -171,6 +166,13 @@ const handleMqttMessage = (event: any, data: any) => {
 
     // 根据 flag 写入对应配置模块
     switch (flag) {
+
+      case "basic":
+        // 接口配置（串口）
+        allConfig.basic = msg
+        console.log("更新 basic 配置成功:", allConfig.basic)
+        break
+
       case "interface":
         // 接口配置（串口）
         allConfig.interface = {
@@ -182,11 +184,11 @@ const handleMqttMessage = (event: any, data: any) => {
 
       case "network":
         // 网络配置，例如 ip/subnet/gateway
-        allConfig.basic = {
-          ...allConfig.basic,
+        allConfig.network = {
+          ...allConfig.network,
           ...msg
         }
-        console.log("更新 network 配置成功:", allConfig.basic)
+        console.log("更新 network 配置成功:", allConfig.network)
         break
 
       case "channels":
@@ -247,6 +249,20 @@ const goBack = () => router.push({ name: 'DeviceList' })
 const saveConfig = async () => {
   if (!device.value) return
   try {
+
+
+    //依次保存配置
+    let basic =  allConfig.basic;
+    basic['type'] = 'set_config';
+
+    const topic = `/server/cmd/${device.value.id}`
+    const message = JSON.stringify(basic);
+
+    const success = window.electronAPI.mqttPublish({topic: topic, message: message, options: { qos: 1 }});
+    if (success) {
+      console.log(`发送命令: -> ${topic} ${message}`)
+    }
+
 
     const payload = {
       [device.value.id]: {

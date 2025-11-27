@@ -22,19 +22,24 @@
         <el-form-item label="设备名称">
           <el-input v-model="modelValue.name" />
         </el-form-item>
-        <el-form-item label="心跳间隔">
-          <el-input-number v-model="modelValue.interval" :min="1" />
-        </el-form-item>
-        <el-form-item label="采集周期">
-          <el-input-number v-model="modelValue.interval" :min="1" />
-        </el-form-item>
       </el-form>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
+
 import { reactive, watch, onMounted, onUnmounted } from 'vue'
+
+// Props
+const props = defineProps<{
+  modelValue: { }
+  device: Device | null
+}>()
+
+if (props.modelValue && !props.modelValue.flag) {
+  props.modelValue.flag = 'basic'
+}
 
 interface Device {
   id: string
@@ -47,11 +52,6 @@ interface Device {
   heart_interval: number
 }
 
-// Props
-const props = defineProps<{
-  modelValue: { }
-  device: Device | null
-}>()
 
 // Reactive 设备信息，用于显示
 const deviceData = reactive({
