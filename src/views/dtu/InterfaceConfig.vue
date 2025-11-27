@@ -122,6 +122,7 @@ watch(
     (newVal) => {
       console.log('调整配置值',JSON.stringify(newVal))
       const out = {
+        "flag":"interface",
         uart1: {
           name: newVal[0].name,
           enabled: newVal[0].enabled,

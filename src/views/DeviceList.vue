@@ -235,10 +235,11 @@ const terminalOutput = ref<HTMLElement>()
 
 // 快速命令
 const quickCommands = ref([
-  { name: '获取配置', topic: `/server/cmd/`, message: '{"type":"get_config"}' },
+  { name: '获取配置', topic: `/server/cmd/`, action: 'get_config'},
   { name: '重启设备', topic: `/server/cmd/`, message: '{"type":"reboot"}' },
   { name: '设备信息', topic: `/server/cmd/`, message: '{"type":"get_info"}' },
-  { name: '清空终端', topic: '', message: '', action: 'clear' }
+  { name: '清空终端', topic: '', message: '', action: 'clear' },
+  { name: '通知设备连接', topic: '', message: '', action: 'connect' }
 ])
 
 // 搜索设备
@@ -405,8 +406,8 @@ const formatRuntime = (seconds: number) => {
 // 打开终端对话框
 const openTerminalDialog = (device: any) => {
 
-  console.log('通知设备连接mqtt:', device.ip)
-  window.electronAPI.connectMqtt(device.ip)
+  //通知设备连接mqtt
+  connectMqtt(device)
 
   currentDevice.value = device
   terminalDialogVisible.value = true
@@ -418,12 +419,18 @@ const openTerminalDialog = (device: any) => {
   addTerminalLog('info', `终端已就绪，设备ID: ${device.id}`)
   addTerminalLog('info', '输入格式: "主题 消息内容" 或直接输入JSON消息')
   addTerminalLog('info', '支持的主题:')
-  addTerminalLog('info', `  订阅: /dev/coo/${device.id}, /dev/ota/${device.id}`)
+  addTerminalLog('info', `  订阅: /dev/coo/${device.id}, /dev/ota/${device.id}, /dev/cmd/${device.id}`)
   addTerminalLog('info', `  发布: /server/coo/${device.id}`)
 
   //连接终端
   toggleTerminalConnection();
 
+}
+
+const connectMqtt = (device: any) => {
+  console.log('通知设备连接mqtt:', device.ip)
+  window.electronAPI.connectMqtt(device.ip)
+  addTerminalLog('info', `通知设备连接mqtt，设备ID: ${device.id}`)
 }
 
 // 切换终端连接状态
@@ -439,7 +446,7 @@ const toggleTerminalConnection = async () => {
   terminalConnecting.value = true
   try {
     // 模拟连接过程
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await new Promise(resolve => setTimeout(resolve, 500))
 
     // 订阅设备相关主题
     await subscribeToDeviceTopics()
@@ -459,9 +466,11 @@ const subscribeToDeviceTopics = async () => {
   const deviceId = currentDevice.value.id
   const cooTopic = `/dev/coo/${deviceId}`
   const otaTopic = `/dev/ota/${deviceId}`
+  const cmdTopic = `/dev/cmd/${deviceId}`
 
   addTerminalLog('info', `订阅主题: ${cooTopic}`)
   addTerminalLog('info', `订阅主题: ${otaTopic}`)
+  addTerminalLog('info', `订阅主题: ${cmdTopic}`)
 
   // 这里可以通过 IPC 告诉主进程订阅这些主题
   // await window.electronAPI.mqttSubscribe([cooTopic, otaTopic])
@@ -503,15 +512,49 @@ const sendTerminalMessage = async () => {
 
 // 执行快速命令
 const executeQuickCommand = (cmd: any) => {
+
+  // 发布快速命令
+  const topic = cmd.topic ? cmd.topic + currentDevice.value.id : `/server/coo/${currentDevice.value.id}`
+  console.log(`执行快速命令 ${topic} message:${JSON.stringify(cmd)}`)
+
   if (cmd.action === 'clear') {
     clearTerminal()
     return
   }
 
-  if (!currentDevice.value) return
+  if(cmd.action === 'connect') {
+    connectMqtt(currentDevice.value);
+    return
+  }
 
-  // 发布快速命令
-  const topic = cmd.topic ? cmd.topic + currentDevice.value.id : `/server/coo/${currentDevice.value.id}`
+  if (cmd.action === 'get_config') {
+    const modules = ['interface', 'network', 'channels'];
+    const delay = 200;
+
+    modules.forEach((module, index) => {
+      setTimeout(() => {
+        const message = JSON.stringify({
+          type: 'get_config',
+          flag: module
+        });
+
+        const success = window.electronAPI.mqttPublish({
+          topic: topic,
+          message: message,
+          options: { qos: 1 }
+        });
+
+        if (success) {
+          addTerminalLog('send', `快速命令: ${cmd.name} -> ${topic} ${message}`)
+        }
+
+      }, index * delay);
+
+    });
+    return;
+  }
+
+  if (!currentDevice.value) return
 
   const success  =  window.electronAPI.mqttPublish({
     topic: topic,

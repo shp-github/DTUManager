@@ -5,14 +5,16 @@
       <div class="header">
         <h2 class="title">DTU 配置 - {{ device?.id }}</h2>
         <div class="actions">
-          <el-button class="action-btn" type="default" @click="loadDeviceConfig">
-            <el-icon><ArrowLeft /></el-icon>
-             读取配置
-          </el-button>
+
           <el-button class="action-btn" type="default" @click="goBack">
             <el-icon><ArrowLeft /></el-icon>
             返回
           </el-button>
+
+          <el-button class="action-btn" type="primary" @click="loadDeviceConfig">
+            读取配置
+          </el-button>
+
           <el-button class="action-btn" type="primary" @click="saveConfig">
             <el-icon><DocumentAdd /></el-icon>
             保存
@@ -110,39 +112,20 @@ const loadDeviceConfig = async () => {
       return
     }
 
-    const deviceId = device.value.id
+    const topic = `/server/cmd/${device.value.id}`
+    const modules = ['interface', 'network', 'channels'];
+    const delay = 200;
 
-    // 下发主题
-    const topic = `/server/cmd/${deviceId}`
-
-    // 构建 JSON 消息
-    const payload = {
-      type: "read_config",
-      deviceId: deviceId
-    }
-
-    const message = JSON.stringify(payload)
-
-    console.log(
-        `%c[READ CONFIG] 向设备下发读取配置命令\n` +
-        `  ➤ 设备ID: ${deviceId}\n` +
-        `  ➤ Topic: ${topic}\n` +
-        `  ➤ Payload: ${message}`,
-        "color:#4CAF50;font-weight:bold;"
-    )
-
-    // 通过 MQTT 发布消息
-    const success = await window.electronAPI.mqttPublish({
-      topic: topic,
-      message: message,
-      options: { qos: 1 }
-    })
-
-    if (success) {
-      ElMessage.success("读取配置成功")
-    } else {
-      ElMessage.success("读取配置失败")
-    }
+    modules.forEach((module, index) => {
+      setTimeout(() => {
+        const message = JSON.stringify({type: 'get_config', flag: module});
+        const success = window.electronAPI.mqttPublish({topic: topic, message: message, options: { qos: 1 }});
+        if (success) {
+          console.log(`发送命令: -> ${topic} ${message}`)
+        }
+      }, index * delay);
+    });
+    return;
 
   } catch (err) {
     console.error('[ERROR] 读取设备配置失败:', err)
@@ -150,12 +133,30 @@ const loadDeviceConfig = async () => {
   }
 }
 
+
+// MQTT 消息处理
+const handleMqttMessage = (event: any, data: any) => {
+
+  const { topic, payload, client } = data
+
+  console.log(`收到消息${topic}: ${payload}`)
+
+  if(topic === `/dev/cmd/${device.id}`) {
+    console.log(`接收设备端配置: ${JSON.stringify(payload)}`)
+  }
+
+}
+
+
 // 每秒更新运行时间
 let runtimeTimer: number
 onMounted(() => {
 
   //通知设备连接mqtt
   connectMqtt();
+
+  //监听设备消息
+  //window.electronAPI.onMqttMessagePublished(handleMqttMessage)
 
   runtimeTimer = window.setInterval(() => {
     if (device.value && device.value.runtime !== undefined) {

@@ -108,6 +108,7 @@ class MQTTServer extends EventEmitter {
                 if (client) {
                     const clientInfo = this.clients.get(client.id);
                     console.log(`📨 收到来自 ${client.id} 的消息: ${packet.topic}`);
+                    console.log(payloadStr);
                     this.emit('messagePublished', {
                         client: clientInfo,
                         topic: packet.topic,
