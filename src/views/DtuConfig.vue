@@ -249,41 +249,72 @@ const goBack = () => router.push({ name: 'DeviceList' })
 const saveConfig = async () => {
   if (!device.value) return
   try {
-
-
-    //依次保存配置
-    let basic =  allConfig.basic;
-    basic['type'] = 'set_config';
-
     const topic = `/server/cmd/${device.value.id}`
-    const message = JSON.stringify(basic);
 
-    const success = window.electronAPI.mqttPublish({topic: topic, message: message, options: { qos: 1 }});
-    if (success) {
-      console.log(`发送命令: -> ${topic} ${message}`)
+    // 1️⃣ 保存 Basic 配置
+    const basicMsg = {
+      type: 'set_config',
+      flag: 'basic',
+      ...allConfig.basic
     }
+    let success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(basicMsg), options: { qos: 1 } })
+    if (success) console.log(`发送 basic 配置: -> ${topic} ${JSON.stringify(basicMsg)}`)
 
-
-    const payload = {
-      [device.value.id]: {
-        type: 'config',
-        ...JSON.parse(JSON.stringify(allConfig))
-      }
+    // 2️⃣ 保存 Interface 配置
+    const interfaceMsg = {
+      type: 'set_config',
+      flag: 'interface',
+      uart1: allConfig.interface.uart1 || {},
+      uart2: allConfig.interface.uart2 || {}
     }
+    success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(interfaceMsg), options: { qos: 1 } })
+    if (success) console.log(`发送 interface 配置: -> ${topic} ${JSON.stringify(interfaceMsg)}`)
 
-    const result = await window.electronAPI.saveConfig(payload)
-    console.log('保存配置:\n', JSON.stringify(payload, null, 2))
-
-    if (result.success) {
-      ElMessage.success('配置已保存到设备')
-    } else {
-      ElMessage.error('保存失败：' + result.error)
+    // 3️⃣ 保存 Network 配置
+    const networkMsg = {
+      type: 'set_config',
+      flag: 'network',
+      ...allConfig.network
     }
+    //success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(networkMsg), options: { qos: 1 } })
+    //if (success) console.log(`发送 network 配置: -> ${topic} ${JSON.stringify(networkMsg)}`)
+
+    // 4️⃣ 保存 Channels 配置
+    const channelsMsg = {
+      type: 'set_config',
+      flag: 'channels',
+      channels: allConfig.networkChannels || []
+    }
+    //success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(channelsMsg), options: { qos: 1 } })
+    //if (success) console.log(`发送 channels 配置: -> ${topic} ${JSON.stringify(channelsMsg)}`)
+
+    // 5️⃣ 保存 Modbus 配置
+    const modbusMsg = {
+      type: 'set_config',
+      flag: 'modbus',
+      data: allConfig.modbus || {}
+    }
+    //success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(modbusMsg), options: { qos: 1 } })
+    //if (success) console.log(`发送 modbus 配置: -> ${topic} ${JSON.stringify(modbusMsg)}`)
+
+    // 6️⃣ 保存 Scene 配置
+    const sceneMsg = {
+      type: 'set_config',
+      flag: 'scene',
+      data: allConfig.scene || {}
+    }
+    //success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(sceneMsg), options: { qos: 1 } })
+    //if (success) console.log(`发送 scene 配置: -> ${topic} ${JSON.stringify(sceneMsg)}`)
+
+    //读取配置
+    loadDeviceConfig();
+
 
   } catch (err: any) {
     ElMessage.error('保存异常: ' + (err.message || err))
   }
 }
+
 
 </script>
 

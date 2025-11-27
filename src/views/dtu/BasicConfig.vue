@@ -37,9 +37,6 @@ const props = defineProps<{
   device: Device | null
 }>()
 
-if (props.modelValue && !props.modelValue.flag) {
-  props.modelValue.flag = 'basic'
-}
 
 interface Device {
   id: string
