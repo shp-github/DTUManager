@@ -46,7 +46,7 @@
           <InterfaceConfig v-model="allConfig.interface" />
         </el-tab-pane>
         <el-tab-pane label="网络通道" name="networkChannels">
-          <NetworkConfig v-model="allConfig.networkChannels" :device="device" />
+          <NetworkChannelConfig v-model="allConfig.networkChannels" :device="device" />
         </el-tab-pane>
         <el-tab-pane label="Modbus" name="modbus">
           <ModbusConfig v-model="allConfig.modbus" />
@@ -66,7 +66,7 @@ import { ElMessage } from 'element-plus'
 import { ArrowLeft, DocumentAdd } from '@element-plus/icons-vue'
 
 import BasicConfig from './dtu/BasicConfig.vue'
-import NetworkConfig from './dtu/NetworkConfig.vue'
+import NetworkChannelConfig from './dtu/NetworkChannelConfig.vue'
 import InterfaceConfig from './dtu/InterfaceConfig.vue'
 import ModbusConfig from './dtu/ModbusConfig.vue'
 import SceneConfig from './dtu/SceneConfig.vue'
@@ -82,10 +82,14 @@ const activeTab = ref('basic')
 const allConfig = reactive({
   basic: {
   },
-  interface: [],
+  interface: {
+    "uart1":{},
+    "uart2":{},
+  },
   networkChannels: [],
   modbus: {},
-  scene: {}
+  scene: {},
+  network:{},
 })
 
 // 通知设备连接mqtt
@@ -226,6 +230,9 @@ onMounted(() => {
   //监听设备消息
   window.electronAPI.deviceConfigMessage(handleMqttMessage)
 
+  //读取配置
+  loadDeviceConfig();
+
   runtimeTimer = window.setInterval(() => {
     if (device.value && device.value.runtime !== undefined) {
       device.value.runtime += 1
@@ -270,14 +277,6 @@ const saveConfig = async () => {
     success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(interfaceMsg), options: { qos: 1 } })
     if (success) console.log(`发送 interface 配置: -> ${topic} ${JSON.stringify(interfaceMsg)}`)
 
-    // 3️⃣ 保存 Network 配置
-    const networkMsg = {
-      type: 'set_config',
-      flag: 'network',
-      ...allConfig.network
-    }
-    //success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(networkMsg), options: { qos: 1 } })
-    //if (success) console.log(`发送 network 配置: -> ${topic} ${JSON.stringify(networkMsg)}`)
 
     // 4️⃣ 保存 Channels 配置
     const channelsMsg = {
@@ -285,8 +284,8 @@ const saveConfig = async () => {
       flag: 'channels',
       channels: allConfig.networkChannels || []
     }
-    //success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(channelsMsg), options: { qos: 1 } })
-    //if (success) console.log(`发送 channels 配置: -> ${topic} ${JSON.stringify(channelsMsg)}`)
+    success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(channelsMsg), options: { qos: 1 } })
+    if (success) console.log(`发送 channels 配置: -> ${topic} ${JSON.stringify(channelsMsg)}`)
 
     // 5️⃣ 保存 Modbus 配置
     const modbusMsg = {

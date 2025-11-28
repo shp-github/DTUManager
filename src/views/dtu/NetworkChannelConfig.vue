@@ -60,13 +60,13 @@
 
         <!-- IP / 端口 / 心跳 -->
         <el-form-item label="IP 地址">
-          <el-input v-model="currentChannel.ip" />
+          <el-input v-model="currentChannel.target" />
         </el-form-item>
         <el-form-item label="端口">
-          <el-input v-model="currentChannel.port" type="number" />
+          <el-input v-model.number="currentChannel.port" type="number" />
         </el-form-item>
         <el-form-item label="心跳时间(秒)">
-          <el-input-number v-model="currentChannel.heartbeatTime" :min="1" />
+          <el-input-number v-model.number="currentChannel.heartbeatTime" :min="1" />
         </el-form-item>
 
         <!-- MQTT 特有 -->
@@ -82,10 +82,10 @@
           </el-form-item>
           <el-form-item label="ClientID"><el-input v-model="currentChannel.clientID" /></el-form-item>
           <el-form-item label="QOS">
-            <el-select v-model="currentChannel.QOS">
-              <el-option label="0" value="0" />
-              <el-option label="1" value="1" />
-              <el-option label="2" value="2" />
+            <el-select v-model.number="currentChannel.QOS">
+              <el-option :label="0" :value="0" />
+              <el-option :label="1" :value="1" />
+              <el-option :label="2" :value="2" />
             </el-select>
           </el-form-item>
           <el-form-item label="PubRetain">
@@ -110,7 +110,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed, watch } from "vue"
+import { reactive, ref, computed, watch, nextTick } from "vue"
 
 interface Device {
   id: string
@@ -120,7 +120,7 @@ interface Channel {
   enabled: boolean;
   source: string;
   protocol: "tcp" | "mqtt";
-  ip: string;
+  target: string;  // 改为 target 与后端一致
   port: number;
   heartbeatTime: number;
   username: string;
@@ -130,7 +130,7 @@ interface Channel {
   subscribeTopic: string;
   publishTopic: string;
   clientID: string;
-  QOS: "0" | "1" | "2";
+  QOS: number;  // 改为 number 类型
   PubRetain: boolean;
   lastWillMessage: string;
 }
@@ -148,12 +148,27 @@ const emit = defineEmits<{
 // ================== 状态定义 ==================
 const activeChannelIndex = ref(0);
 
+// 深拷贝函数
+const deepClone = <T>(obj: T): T => {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (obj instanceof Date) return new Date(obj.getTime()) as T;
+  if (obj instanceof Array) return obj.map(item => deepClone(item)) as T;
+
+  const cloned = {} as T;
+  for (const key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      cloned[key] = deepClone(obj[key]);
+    }
+  }
+  return cloned;
+}
+
 function defaultChannel(i: number): Channel {
   return {
     enabled: i === 0,
     source: i === 0 ? "serial1" : "",
     protocol: i === 0 ? "mqtt" : "tcp",
-    ip: i === 0 && props.device ? "121.36.223.224" : "",
+    target: i === 0 && props.device ? "121.36.223.224" : "",
     port: i === 0 ? 1883 : 50001,
     heartbeatTime: i === 0 ? 30 : 0,
     username: i === 0 ? "device" : "",
@@ -163,45 +178,67 @@ function defaultChannel(i: number): Channel {
     subscribeTopic: i === 0 && props.device ? `/server/coo/${props.device.id}` : "",
     publishTopic: i === 0 && props.device ? `/dev/coo/${props.device.id}` : "",
     clientID: i === 0 && props.device ? props.device.id : "",
-    QOS: "0",
+    QOS: 0,  // 改为 number
     PubRetain: false,
-    lastWillMessage: ""
+    lastWillMessage: "",
   }
 }
 
-// 初始化 channels
+// 初始化 channels - 使用响应式包装
 const channels = reactive<Channel[]>(
     props.modelValue?.length
-        ? props.modelValue.map((x, i) => Object.assign(defaultChannel(i), x))
+        ? deepClone(props.modelValue)
         : Array.from({ length: 3 }, (_, i) => defaultChannel(i))
 )
 
 // 当前通道
 const currentChannel = computed(() => channels[activeChannelIndex.value])
 
+// 防抖更新
+let updateTimeout: NodeJS.Timeout | null = null
+
+// 触发更新到父组件
+const triggerUpdate = () => {
+  if (updateTimeout) {
+    clearTimeout(updateTimeout)
+  }
+  updateTimeout = setTimeout(() => {
+    emit("update:modelValue", deepClone(channels))
+  }, 100)
+}
+
+// ================== 监听变化并同步到父组件 ==================
+watch(
+    channels,
+    () => {
+      triggerUpdate()
+    },
+    { deep: true, immediate: true }
+)
+
+// 监听当前通道的深度变化
+watch(
+    () => currentChannel.value,
+    () => {
+      triggerUpdate()
+    },
+    { deep: true }
+)
+
 // ================== 父 → 子同步 ==================
 watch(
     () => props.modelValue,
     (val) => {
       if (!val) return
-      val.forEach((item, i) => {
-        if (channels[i]) {
-          Object.assign(channels[i], item)
-        }
+
+      // 使用 nextTick 确保 DOM 更新完成后再更新数据
+      nextTick(() => {
+        val.forEach((item, i) => {
+          if (channels[i]) {
+            Object.assign(channels[i], deepClone(item))
+          }
+        })
       })
-    },
-    { deep: true }
-)
-
-// ================== 子 → 父同步 ==================
-watch(
-    channels,
-    (val) => {
-
-      console.log('调整配置值',JSON.stringify(val))
-      console.log('调整配置值',JSON.parse(JSON.stringify(val)))
-
-      emit("update:modelValue", JSON.parse(JSON.stringify(val)))
     },
     { deep: true }
 )
@@ -211,6 +248,7 @@ watch(
     () => props.device,
     (device) => {
       if (!device) return
+
       channels.forEach((ch) => {
         if (ch.enabled) {
           ch.registerPackage = device.id
@@ -222,10 +260,11 @@ watch(
           }
         }
       })
+
+      triggerUpdate()
     },
     { immediate: true }
 )
-
 
 // ================== 事件处理 ==================
 const handleProtocolChange = () => {
@@ -233,13 +272,14 @@ const handleProtocolChange = () => {
   if (!ch.enabled) return;
 
   if (ch.protocol === "tcp") {
+    ch.target = "192.168.2.45";
     ch.port = 50001;
     ch.username = "";
     ch.password = "";
     ch.subscribeTopic = "";
     ch.publishTopic = "";
     ch.clientID = "";
-    ch.QOS = "0";
+    ch.QOS = 0;
     ch.PubRetain = false;
     ch.lastWillMessage = "";
   } else if (ch.protocol === "mqtt" && props.device) {
@@ -249,10 +289,14 @@ const handleProtocolChange = () => {
     ch.subscribeTopic = `/server/coo/${props.device.id}`;
     ch.publishTopic   = `/dev/coo/${props.device.id}`;
     ch.clientID       = props.device.id;
-    ch.QOS = "0";
+    ch.registerPackage = props.device.id;
+    ch.heartbeatPackage = props.device.id;
+    ch.QOS = 0;
     ch.PubRetain = false;
     ch.lastWillMessage = "";
   }
+
+  triggerUpdate()
 }
 
 const handleEnableChange = (enabled: boolean) => {
@@ -262,7 +306,7 @@ const handleEnableChange = (enabled: boolean) => {
       enabled: false,
       source: "",
       protocol: "tcp",
-      ip: "",
+      target: "",
       port: 0,
       heartbeatTime: 0,
       username: "",
@@ -272,13 +316,13 @@ const handleEnableChange = (enabled: boolean) => {
       subscribeTopic: "",
       publishTopic: "",
       clientID: "",
-      QOS: "0",
+      QOS: 0,
       PubRetain: false,
       lastWillMessage: ""
     });
   } else {
     ch.enabled = true;
-    ch.ip = "121.36.223.224";
+    ch.target = "121.36.223.224";  // 改为 target
     ch.heartbeatTime = 30;
     if (props.device) {
       ch.registerPackage = props.device.id
@@ -286,7 +330,17 @@ const handleEnableChange = (enabled: boolean) => {
     }
     handleProtocolChange();
   }
+
+  triggerUpdate()
 }
+
+// 组件卸载时清理
+import { onUnmounted } from 'vue'
+onUnmounted(() => {
+  if (updateTimeout) {
+    clearTimeout(updateTimeout)
+  }
+})
 </script>
 
 <style scoped>
