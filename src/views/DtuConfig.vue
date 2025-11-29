@@ -224,14 +224,13 @@ const handleMqttMessage = (event: any, data: any) => {
 let runtimeTimer: number
 onMounted(() => {
 
-  //通知设备连接mqtt
-  connectMqtt();
-
   //监听设备消息
   window.electronAPI.deviceConfigMessage(handleMqttMessage)
 
-  //读取配置
-  loadDeviceConfig();
+  setTimeout(() => {
+    //读取配置
+    loadDeviceConfig();
+  }, 500);
 
   runtimeTimer = window.setInterval(() => {
     if (device.value && device.value.runtime !== undefined) {

@@ -361,8 +361,21 @@ const submitUpgrade = async () => {
     selectedFile.value = null
     fileList.value = []
 
+
     //打开终端串口
     openTerminalDialog(currentDevice.value)
+
+    //使用mqtt推送升级
+    const topic = `/server/cmd/${currentDevice.value.id}`
+    const message = JSON.stringify({
+      type: 'ota',
+      downloadUrl: upgradeResult.downloadUrl
+    });
+    window.electronAPI.mqttPublish({
+      topic: topic,
+      message: message,
+      options: { qos: 1 }
+    });
 
   } catch (error: any) {
     console.error('升级失败:', error)
