@@ -16,41 +16,54 @@
     </div>
 
     <!-- 设备表格 -->
-    <el-table :data="filteredDevices" style="width:100%" stripe border>
-
-      <el-table-column label="操作" >
-        <template #default="{ row }">
-          <el-button type="primary" size="small" @click="goToConfig(row)">
-            设备管理
-          </el-button>
-          <el-button
-              type="warning"
-              size="small"
-              @click="openUpgradeDialog(row)">
-            升级
-          </el-button>
-          <!-- 新增终端按钮 -->
-          <el-button
-              type="success"
-              size="small"
-              @click="openTerminalDialog(row)">
-            终端
-          </el-button>
-        </template>
-      </el-table-column>
-
-      <el-table-column prop="id" label="设备号" width="180" />
-      <el-table-column prop="mac" label="MAC地址" width="180" />
-      <el-table-column prop="ip" label="IP 地址" width="160" />
-      <el-table-column prop="networkType" label="网络类型" width="120" />
-      <el-table-column prop="RSSI" label="信号" width="80" />
-      <el-table-column label="运行时间" width="200">
+    <el-table
+        :data="filteredDevices"
+        style="width:100%"
+        stripe
+        border
+        :row-style="{ height: '48px' }"
+    >
+      <el-table-column prop="name" label="设备名称" width="180" resizable />
+      <el-table-column prop="id" label="设备号" width="180" resizable />
+      <el-table-column prop="networkType" label="网络类型" width="90" resizable />
+      <el-table-column prop="RSSI" label="信号" width="80" resizable />
+      <el-table-column prop="ip" label="IP 地址" width="120" resizable />
+      <el-table-column prop="mac" label="MAC地址" width="180" resizable />
+      <el-table-column label="运行时间" width="200" resizable>
         <template #default="{ row }">
           {{ formatRuntime(row.runtime) }}
         </template>
       </el-table-column>
-      <el-table-column prop="firmware" label="固件版本" width="120" />
-      <el-table-column prop="heart_interval" label="心跳(s)" width="140" />
+      <el-table-column prop="firmware" label="固件版本" width="120" resizable />
+      <el-table-column prop="heart_interval" label="心跳(s)" width="80" resizable />
+
+      <!-- 操作列放到最后并固定 -->
+      <el-table-column
+          label="操作"
+          width="280"
+          fixed="right"
+          align="center"
+      >
+        <template #default="{ row }">
+          <div class="action-buttons">
+            <el-button type="primary" size="small" @click="goToConfig(row)">
+              设备管理
+            </el-button>
+            <el-button
+                type="warning"
+                size="small"
+                @click="openUpgradeDialog(row)">
+              升级
+            </el-button>
+            <el-button
+                type="success"
+                size="small"
+                @click="openTerminalDialog(row)">
+              终端
+            </el-button>
+          </div>
+        </template>
+      </el-table-column>
     </el-table>
 
   </div>

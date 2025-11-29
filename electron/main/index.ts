@@ -123,6 +123,7 @@ udpServer.on('message', (msg, rinfo) => {
 
             // 更新设备列表
             devices.set(id, {
+                name: payload.name,
                 id,
                 mac: payload.mac || "",
                 ip: payload.ip || rinfo.address,
@@ -148,6 +149,31 @@ udpServer.on('message', (msg, rinfo) => {
         console.warn('[WARNING] Failed to parse UDP message:', message)
     }
 })
+
+// 定义设备超时时间（毫秒）
+const DEVICE_TIMEOUT = 30000;
+
+// 定时清理离线设备
+setInterval(() => {
+    const now = Date.now();
+    let changed = false;
+
+    for (const [id, device] of devices.entries()) {
+        if (now - device.lastSeen > DEVICE_TIMEOUT) {
+            console.log(`[TIMEOUT] Device offline: ${id}`);
+            devices.delete(id);
+            changed = true;
+        }
+    }
+
+    if (changed) {
+        // 通知前端更新列表
+        win?.webContents.send(
+            'udp-device-discovered',
+            Array.from(devices.values())
+        );
+    }
+}, 5000);
 
 // 启动 UDP 服务器
 udpServer.bind(UDP_DISCOVERY_PORT, () => {
