@@ -151,7 +151,7 @@ udpServer.on('message', (msg, rinfo) => {
 })
 
 // 定义设备超时时间（毫秒）
-const DEVICE_TIMEOUT = 30000;
+const DEVICE_TIMEOUT = 10000;
 
 // 定时清理离线设备
 setInterval(() => {

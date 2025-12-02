@@ -10,8 +10,12 @@
           clearable
           class="search-input"
       />
-      <el-button type="primary" icon="el-icon-search" @click="searchDevices">
+      <el-button type="primary"  @click="searchDevices">
         搜索
+      </el-button>
+      <!-- 添加刷新按钮 -->
+      <el-button type="info"  @click="refreshDeviceList">
+        刷新
       </el-button>
     </div>
 
@@ -23,24 +27,24 @@
         border
         :row-style="{ height: '48px' }"
     >
-      <el-table-column prop="name" label="设备名称" width="180" resizable />
+      <el-table-column prop="name" label="设备名称" width="160" resizable />
       <el-table-column prop="id" label="设备号" width="180" resizable />
+      <el-table-column prop="ip" label="IP 地址" width="120" resizable />
+      <el-table-column prop="firmware" label="固件版本" width="100" resizable />
       <el-table-column prop="networkType" label="网络类型" width="90" resizable />
       <el-table-column prop="RSSI" label="信号" width="80" resizable />
-      <el-table-column prop="ip" label="IP 地址" width="120" resizable />
       <el-table-column prop="mac" label="MAC地址" width="180" resizable />
       <el-table-column label="运行时间" width="200" resizable>
         <template #default="{ row }">
           {{ formatRuntime(row.runtime) }}
         </template>
       </el-table-column>
-      <el-table-column prop="firmware" label="固件版本" width="120" resizable />
       <el-table-column prop="heart_interval" label="心跳(s)" width="80" resizable />
 
       <!-- 操作列放到最后并固定 -->
       <el-table-column
           label="操作"
-          width="280"
+          width="220"
           fixed="right"
           align="center"
       >
@@ -660,14 +664,37 @@ const handleMqttMessage = (event: any, data: any) => {
 
 // 监听 Electron UDP 发现设备
 onMounted(() => {
+  // 清空现有设备列表
+  devices.value = []
+  filteredDevices.value = []
+
+  // 监听设备发现（这个事件应该由主进程在扫描到设备时触发）
   window.electronAPI.onDeviceDiscovered((list: any[]) => {
-    devices.value = list
-    filteredDevices.value = list
+    // 直接替换，不使用缓存
+    devices.value = [...list]  // 使用展开运算符创建新数组
+    filteredDevices.value = [...list]
   })
 
   // 监听 MQTT 消息
   window.electronAPI.onMqttMessagePublished(handleMqttMessage)
 })
+
+
+// 添加一个刷新函数
+const refreshDeviceList = () => {
+  // 清空当前列表
+  devices.value = []
+  filteredDevices.value = []
+
+  // 重置搜索
+  searchText.value = ''
+
+  // 通知主进程重新扫描设备
+  window.electronAPI.rescanDevices?.()
+
+  ElMessage.success('正在刷新设备列表...')
+}
+
 </script>
 
 <style scoped>
