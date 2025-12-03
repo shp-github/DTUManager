@@ -116,39 +116,59 @@ const udpServer = dgram.createSocket('udp4')
 // 监听设备广播
 udpServer.on('message', (msg, rinfo) => {
     try {
-        const payload = JSON.parse(msg.toString())
+        const payload = JSON.parse(msg.toString());
 
         if (payload.type === 'discover') {
-            const id = payload.id || rinfo.address
+            const id = payload.id || rinfo.address;
+            const currentTime = Date.now(); // 使用时间戳
 
-            // 更新设备列表
-            devices.set(id, {
-                name: payload.name,
-                id,
-                mac: payload.mac || "",
-                ip: payload.ip || rinfo.address,
-                networkType: payload.networkType || "UNKNOWN",
-                RSSI: payload.RSSI ?? null,
-                runtime: payload.runtime ?? 0,
-                firmware: payload.firmware || "?",
-                heart_interval: payload.heart_interval || "?",
-                lastSeen: new Date().toLocaleTimeString()
-            })
+            // 检查设备是否已存在
+            if (devices.has(id)) {
+                // 更新已有设备
+                const existingDevice = devices.get(id);
+                existingDevice.lastSeen = currentTime; // 更新时间戳
 
-            console.log(`[DISCOVERY] Device found: ${id} @ ${rinfo.address}`)
+                // 可选：更新其他可能变化的信息
+                if (payload.runtime !== undefined) existingDevice.runtime = payload.runtime;
+                if (payload.RSSI !== undefined) existingDevice.RSSI = payload.RSSI;
+                if (payload.name) existingDevice.name = payload.name;
+                if (payload.firmware) existingDevice.firmware = payload.firmware;
+                if (payload.heart_interval) existingDevice.heart_interval = payload.heart_interval;
 
-            // 发送给渲染进程（前端）
-            win?.webContents.send(
-                'udp-device-discovered',
-                Array.from(devices.values())
-            )
+                console.log(`[UPDATE] 更新设备 ${id} 的心跳时间`);
+            } else {
+                // 新增设备
+                devices.set(id, {
+                    name: payload.name || `设备-${id}`,
+                    id,
+                    mac: payload.mac || "未知",
+                    ip: payload.ip || rinfo.address,
+                    networkType: payload.networkType || "未知",
+                    RSSI: payload.RSSI ?? null,
+                    runtime: payload.runtime ?? 0,
+                    firmware: payload.firmware || "未知",
+                    heart_interval: payload.heart_interval || 5,
+                    lastSeen: currentTime // 使用时间戳，不是字符串
+                });
+
+                console.log(`[DISCOVERY] 发现新设备: ${id} @ ${rinfo.address}`);
+
+                // 立即通知前端有新设备
+                win?.webContents.send(
+                    'udp-device-discovered',
+                    Array.from(devices.values()).map(device => {
+                        const { lastSeen, ...deviceData } = device;
+                        return deviceData;
+                    })
+                );
+            }
         }
 
     } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        console.warn('[WARNING] Failed to parse UDP message:', message)
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn('[WARNING] Failed to parse UDP message:', message);
     }
-})
+});
 
 // 定义设备超时时间（毫秒）
 const DEVICE_TIMEOUT = 10000;
@@ -159,8 +179,18 @@ setInterval(() => {
     let changed = false;
 
     for (const [id, device] of devices.entries()) {
-        if (now - device.lastSeen > DEVICE_TIMEOUT) {
-            console.log(`[TIMEOUT] Device offline: ${id}`);
+        // 检查 device.lastSeen 是否存在且是数字
+        if (device.lastSeen && typeof device.lastSeen === 'number') {
+            if (now - device.lastSeen > DEVICE_TIMEOUT) {
+                console.log(`[TIMEOUT] Device offline: ${id} (${device.ip})`);
+                devices.delete(id);
+                changed = true;
+                console.log(`设备 ${id} 已离线`);
+            }
+        } else {
+            // 如果 lastSeen 不是数字，可能是旧格式，需要修复或删除
+            console.warn(`设备 ${id} 的 lastSeen 格式错误: ${device.lastSeen}`);
+            // 可以删除这个设备，或者尝试修复
             devices.delete(id);
             changed = true;
         }
@@ -170,10 +200,17 @@ setInterval(() => {
         // 通知前端更新列表
         win?.webContents.send(
             'udp-device-discovered',
-            Array.from(devices.values())
+            Array.from(devices.values()).map(device => {
+                // 返回给前端的数据，排除 lastSeen 字段
+                const { lastSeen, ...deviceData } = device;
+                return deviceData;
+            })
         );
     }
-}, 5000);
+}, 3000);
+
+
+
 
 // 启动 UDP 服务器
 udpServer.bind(UDP_DISCOVERY_PORT, () => {

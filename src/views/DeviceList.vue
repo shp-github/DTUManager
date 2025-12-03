@@ -13,10 +13,7 @@
       <el-button type="primary"  @click="searchDevices">
         搜索
       </el-button>
-      <!-- 添加刷新按钮 -->
-      <el-button type="info"  @click="refreshDeviceList">
-        刷新
-      </el-button>
+
     </div>
 
     <!-- 设备表格 -->
@@ -679,21 +676,6 @@ onMounted(() => {
   window.electronAPI.onMqttMessagePublished(handleMqttMessage)
 })
 
-
-// 添加一个刷新函数
-const refreshDeviceList = () => {
-  // 清空当前列表
-  devices.value = []
-  filteredDevices.value = []
-
-  // 重置搜索
-  searchText.value = ''
-
-  // 通知主进程重新扫描设备
-  window.electronAPI.rescanDevices?.()
-
-  ElMessage.success('正在刷新设备列表...')
-}
 
 </script>
 

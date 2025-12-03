@@ -85,8 +85,6 @@ declare global {
 
             deviceConfigMessage(handleMqttMessage: (event: any, data: any) => void): void;
 
-            rescanDevices(): void;
-
         }
     }
 }

@@ -65,9 +65,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.removeAllListeners('mqtt-message-published');
     },
 
-    // 或者直接发送 UDP 广播
-    rescanDevices: () => ipcRenderer.send('rescan-devices'),
-
 })
 
 
