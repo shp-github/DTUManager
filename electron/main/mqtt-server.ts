@@ -320,22 +320,6 @@ class MQTTServer extends EventEmitter {
         }, { qos: 1 });
     }
 
-    sendRebootCommand(deviceId: string): boolean {
-        // 确保 deviceId 是字符串
-        const safeDeviceId = String(deviceId || '').trim();
-        if (!safeDeviceId) {
-            console.error('❌ sendRebootCommand: deviceId 为空');
-            return false;
-        }
-
-        const topic = `cmd/${safeDeviceId}/reboot`;
-        console.log(`📤 发送重启命令到设备 ${safeDeviceId}, 主题: ${topic}`);
-        return this.publish(topic, {
-            timestamp: Date.now(),
-            command: 'reboot'
-        }, { qos: 1 });
-    }
-
     getStatus() {
         const addresses = this.isRunning ? this.getNetworkAddresses() : [];
 

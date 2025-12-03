@@ -153,16 +153,18 @@ udpServer.on('message', (msg, rinfo) => {
 
                 console.log(`[DISCOVERY] 发现新设备: ${id} @ ${rinfo.address}`);
 
-                // 立即通知前端有新设备
-                win?.webContents.send(
-                    'udp-device-discovered',
-                    Array.from(devices.values()).map(device => {
-                        const { lastSeen, ...deviceData } = device;
-                        return deviceData;
-                    })
-                );
+
             }
         }
+
+        // 立即通知前端有新设备
+        win?.webContents.send(
+            'udp-device-discovered',
+            Array.from(devices.values()).map(device => {
+                const { lastSeen, ...deviceData } = device;
+                return deviceData;
+            })
+        );
 
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
