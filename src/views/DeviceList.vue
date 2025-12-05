@@ -260,7 +260,9 @@ const terminalOutput = ref<HTMLElement>()
 // 快速命令
 const quickCommands = ref([
   { name: '获取配置', topic: `/server/cmd/`, action: 'get_config'},
-  { name: '重启设备', topic: `/server/cmd/`, message: '{"type":"reboot"}' },
+  { name: '重启设备(MQTT)', topic: `/server/cmd/`, message: '{"type":"reboot"}' },
+  { name: '重启设备(UDP)', topic: ``, message: '',action: 'reboot' },
+  { name: '获取设备号', topic: `/server/cmd/`, message: '{"type":"get_client_id"}' },
   { name: '设备信息', topic: `/server/cmd/`, message: '{"type":"get_info"}' },
   { name: '清空终端', topic: '', message: '', action: 'clear' },
   { name: '通知设备连接', topic: '', message: '', action: 'connect' }
@@ -542,6 +544,12 @@ const connectMqtt = (device: any) => {
   addTerminalLog('info', `通知设备连接mqtt，设备ID: ${device.id}`)
 }
 
+const reboot = (device: any) => {
+  console.log('通知设备重启:', device.ip)
+  window.electronAPI.deviceReboot(device.ip)
+  addTerminalLog('info', `通知设备重启，设备ID: ${device.id}`)
+}
+
 // 切换终端连接状态
 const toggleTerminalConnection = async () => {
   if (isTerminalConnected.value) {
@@ -628,6 +636,11 @@ const executeQuickCommand = (cmd: any) => {
 
   if (cmd.action === 'clear') {
     clearTerminal()
+    return
+  }
+
+  if(cmd.action === 'reboot') {
+    reboot(currentDevice.value);
     return
   }
 

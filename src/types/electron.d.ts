@@ -63,6 +63,8 @@ declare global {
 
             connectMqtt:(deviceIp: string)=>Promise<{ success: boolean; }>
 
+            deviceReboot:(deviceIp: string)=>Promise<{ success: boolean; }>
+
             // 窗口管理
             openChildWindow: (page: string) => Promise<void>
             openWin: (arg: any) => Promise<void>

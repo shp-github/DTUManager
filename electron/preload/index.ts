@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     sendUpgradeCommand: (deviceIp, fileName, serverInfo) => ipcRenderer.invoke('send-upgrade-command', { deviceIp, fileName, serverInfo }),
 
     connectMqtt: (deviceIp) => ipcRenderer.invoke('connect-mqtt', deviceIp),
+    deviceReboot: (deviceIp) => ipcRenderer.invoke('device-reboot', deviceIp),
 
 
     // MQTT 相关 API

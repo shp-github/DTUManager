@@ -110,34 +110,36 @@ const connectMqtt = async () => {
   }
 }
 
-// 读取设备配置
+// 读取设备配置（简洁版本）
 const loadDeviceConfig = async () => {
-  if (!device.value) return
-  try {
+  if (!device.value?.id) return
 
-    if (!device.value || !device.value.id) {
-      console.error("设备ID为空，无法发送读取配置命令")
-      return
+  try {
+    const topic = `/server/cmd/${device.value.id}`
+    const modules = ['basic', 'interface', 'network', 'channels', 'modbus']
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+    for (const [index, module] of modules.entries()) {
+      const message = JSON.stringify({type: 'get_config', flag: module})
+
+      const success = window.electronAPI.mqttPublish({
+        topic,
+        message,
+        options: { qos: 1 }
+      })
+
+      console.log(success ? `✓ 发送${module}配置读取命令 (${index+1}/${modules.length})` : `✗ ${module}配置读取命令发送失败`)
+
+      // 延迟500ms（最后一个模块不需要延迟）
+      if (index < modules.length - 1) await delay(500)
     }
 
-    const topic = `/server/cmd/${device.value.id}`
-    const modules = ['basic','interface', 'network', 'channels',`modbus`];
-    const delay = 200;
-
-    modules.forEach((module, index) => {
-      setTimeout(() => {
-        const message = JSON.stringify({type: 'get_config', flag: module});
-        const success = window.electronAPI.mqttPublish({topic: topic, message: message, options: { qos: 1 }});
-        if (success) {
-          console.log(`发送命令: -> ${topic} ${message}`)
-        }
-      }, index * delay);
-    });
-    return;
+    console.log('✅ 所有配置读取命令发送完成')
+    ElMessage.success('配置读取命令已发送')
 
   } catch (err) {
-    console.error('[ERROR] 读取设备配置失败:', err)
-    ElMessage.error('读取设备配置失败')
+    console.error('❌ 读取设备配置失败:', err)
+    ElMessage.error('读取失败: ' + (err.message || err))
   }
 }
 
@@ -174,7 +176,7 @@ const handleMqttMessage = (event: any, data: any) => {
       case "basic":
         // 接口配置（串口）
         allConfig.basic = msg
-        console.log("更新 basic 配置成功:", allConfig.basic)
+        //console.log("更新 basic 配置成功:", allConfig.basic)
         break
 
       case "interface":
@@ -183,7 +185,7 @@ const handleMqttMessage = (event: any, data: any) => {
           uart1: msg.uart1 || {},
           uart2: msg.uart2 || {}
         }
-        console.log("更新 interface 配置成功:", allConfig.interface)
+        //console.log("更新 interface 配置成功:", allConfig.interface)
         break
 
       case "network":
@@ -192,13 +194,13 @@ const handleMqttMessage = (event: any, data: any) => {
           ...allConfig.network,
           ...msg
         }
-        console.log("更新 network 配置成功:", allConfig.network)
+        //console.log("更新 network 配置成功:", allConfig.network)
         break
 
       case "channels":
         // 网络通道列表
         allConfig.networkChannels = msg.channels || []
-        console.log("更新 networkChannels 配置成功:", allConfig.networkChannels)
+        //console.log("更新 networkChannels 配置成功:", allConfig.networkChannels)
         break
 
       case "modbus":
@@ -228,9 +230,14 @@ onMounted(() => {
   window.electronAPI.deviceConfigMessage(handleMqttMessage)
 
   setTimeout(() => {
+    //通知设备连接mqtt
+    connectMqtt();
+  }, 500);
+
+  setTimeout(() => {
     //读取配置
     loadDeviceConfig();
-  }, 500);
+  }, 1000);
 
   runtimeTimer = window.setInterval(() => {
     if (device.value && device.value.runtime !== undefined) {
@@ -241,6 +248,7 @@ onMounted(() => {
   window.electronAPI.on('menu-action', (action: string) => {
     if (action === 'save') saveConfig()
   })
+
 })
 
 onBeforeUnmount(() => {
@@ -250,69 +258,81 @@ onBeforeUnmount(() => {
 
 // 返回
 const goBack = () => router.push({ name: 'DeviceList' })
-
 // 保存配置
 const saveConfig = async () => {
   if (!device.value) return
   try {
     const topic = `/server/cmd/${device.value.id}`
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
-    // 1️⃣ 保存 Basic 配置
-    const basicMsg = {
-      type: 'set_config',
-      flag: 'basic',
-      ...allConfig.basic
+    // 定义配置消息数组
+    const configMessages = [
+      // Basic 配置
+      {
+        topic,
+        message: JSON.stringify({
+          type: 'set_config',
+          flag: 'basic',
+          ...allConfig.basic
+        })
+      },
+      // Interface 配置
+      {
+        topic,
+        message: JSON.stringify({
+          type: 'set_config',
+          flag: 'interface',
+          uart1: allConfig.interface.uart1 || {},
+          uart2: allConfig.interface.uart2 || {}
+        })
+      },
+      // Channels 配置
+      {
+        topic,
+        message: JSON.stringify({
+          type: 'set_config',
+          flag: 'channels',
+          channels: allConfig.networkChannels || []
+        })
+      },
+      // Modbus 配置
+      {
+        topic,
+        message: JSON.stringify({
+          type: 'set_config',
+          flag: 'modbus',
+          data: allConfig.modbus || {}
+        })
+      },
+      // Scene 配置（如果有的话）
+      // {
+      //   topic,
+      //   message: JSON.stringify({
+      //     type: 'set_config',
+      //     flag: 'scene',
+      //     data: allConfig.scene || {}
+      //   })
+      // }
+    ]
+
+    // 依次发送每个配置，每条消息之间间隔500毫秒
+    for (let msg of configMessages) {
+      const success = window.electronAPI.mqttPublish({ ...msg, options: { qos: 1 } })
+      if (success) {
+        console.log(`发送配置: -> ${msg.topic} ${msg.message}`)
+      } else {
+        console.error(`发送配置失败: ${msg.topic}`)
+      }
+      await sleep(300) // 等待500毫秒
     }
-    let success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(basicMsg), options: { qos: 1 } })
-    //if (success) console.log(`发送 basic 配置: -> ${topic} ${JSON.stringify(basicMsg)}`)
 
-    // 2️⃣ 保存 Interface 配置
-    const interfaceMsg = {
-      type: 'set_config',
-      flag: 'interface',
-      uart1: allConfig.interface.uart1 || {},
-      uart2: allConfig.interface.uart2 || {}
-    }
-    success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(interfaceMsg), options: { qos: 1 } })
-    //if (success) console.log(`发送 interface 配置: -> ${topic} ${JSON.stringify(interfaceMsg)}`)
-
-
-    // 4️⃣ 保存 Channels 配置
-    const channelsMsg = {
-      type: 'set_config',
-      flag: 'channels',
-      channels: allConfig.networkChannels || []
-    }
-    success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(channelsMsg), options: { qos: 1 } })
-    //if (success) console.log(`发送 channels 配置: -> ${topic} ${JSON.stringify(channelsMsg)}`)
-
-    // 5️⃣ 保存 Modbus 配置
-    const modbusMsg = {
-      type: 'set_config',
-      flag: 'modbus',
-      data: allConfig.modbus || {}
-    }
-    success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(modbusMsg), options: { qos: 1 } })
-    if (success) console.log(`发送 modbus 配置: -> ${topic} ${JSON.stringify(modbusMsg)}`)
-
-    // 6️⃣ 保存 Scene 配置
-    const sceneMsg = {
-      type: 'set_config',
-      flag: 'scene',
-      data: allConfig.scene || {}
-    }
-    //success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(sceneMsg), options: { qos: 1 } })
-    //if (success) console.log(`发送 scene 配置: -> ${topic} ${JSON.stringify(sceneMsg)}`)
-
-    //读取配置
-    loadDeviceConfig();
-
+    // 读取配置
+    loadDeviceConfig()
 
   } catch (err: any) {
     ElMessage.error('保存异常: ' + (err.message || err))
   }
 }
-
 
 </script>
 

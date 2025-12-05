@@ -115,7 +115,12 @@
         </el-table-column>
         <el-table-column label="从机地址" width="160">
           <template #default="{ row }">
-            <el-input v-model="row.slaveAddress" type="number" min="1" max="247" @input.stop />
+            <el-input-number
+                v-model.number="row.slaveAddress"
+                :min="1"
+                :max="247"
+                @input.stop
+            />
           </template>
         </el-table-column>
         <el-table-column label="功能码" width="120">
