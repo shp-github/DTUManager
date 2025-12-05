@@ -5,7 +5,7 @@
     <el-card shadow="hover" class="modbus-card">
       <el-form :model="modbusConfig" label-width="140px">
         <el-form-item label="启用 Modbus">
-          <el-switch v-model="modbusConfig.enabled" active-text="启用" inactive-text="禁用" />
+          <el-switch @change="setModbusConfig()" v-model="modbusConfig.enabled" active-text="启用" inactive-text="禁用" />
         </el-form-item>
 
         <template v-if="modbusConfig.enabled">
@@ -17,15 +17,16 @@
           </el-form-item>
 
           <el-form-item label="输入数据源">
-            <el-select v-model="modbusConfig.inputSource" multiple>
+            <el-select v-model="modbusConfig.inputSource" >
               <el-option label="串口1" value="serial1"/>
-              <el-option label="串口2" value="serial2"/>
+              <!--<el-option label="串口2" value="serial2"/>-->
             </el-select>
           </el-form-item>
 
           <el-form-item label="输出数据源">
             <el-select v-model="modbusConfig.outputSource" multiple>
-              <el-option v-for="i in 6" :label="'自定义' + i" :value="i" :key="i"/>
+              <el-option  label="默认" :value="0" :key="0"/>
+              <el-option v-for="i in 3" :label="'自定义' + i" :value="i" :key="i"/>
             </el-select>
           </el-form-item>
 
@@ -152,6 +153,17 @@
 <script setup lang="ts">
 import { reactive, ref, computed, watch } from 'vue'
 import { nanoid } from 'nanoid'
+
+const setModbusConfig = () =>{
+  //启用设置默认值
+  if(modbusConfig.value.enabled){
+    modbusConfig.value.protocol = "rtu"
+    modbusConfig.value.inputSource = "serial1"
+    modbusConfig.value.outputSource = [0]
+    modbusConfig.value.interval = 50
+  }
+}
+
 
 const props = defineProps<{
   modelValue?: any

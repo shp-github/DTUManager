@@ -6,35 +6,35 @@
       <div v-for="(port, index) in uarts" :key="index" class="port-item">
         <el-form label-width="120px" :model="port" class="config-form">
           <el-form-item label="名称">
-            <el-input v-model="port.name" readonly />
+            <el-input :disabled="index==1" v-model="port.name" readonly />
           </el-form-item>
 
           <el-form-item label="启用接口">
-            <el-switch v-model="port.enabled" active-text="启用" inactive-text="禁用" />
+            <el-switch :disabled="index==1" v-model="port.enabled" active-text="启用" inactive-text="禁用" />
           </el-form-item>
 
           <el-form-item label="波特率">
-            <el-select v-model.number="port.baud" placeholder="请选择波特率">
-              <el-option v-for="b in baudList" :key="b" :label="String(b)" :value="b" />
+            <el-select :disabled="index==1" v-model.number="port.baud" placeholder="请选择波特率">
+              <el-option  v-for="b in baudList" :key="b" :label="String(b)" :value="b" />
             </el-select>
           </el-form-item>
 
           <el-form-item label="数据位">
-            <el-select v-model.number="port.dataBits">
+            <el-select :disabled="index==1" v-model.number="port.dataBits">
               <el-option label="7 位" :value="7" />
               <el-option label="8 位" :value="8" />
             </el-select>
           </el-form-item>
 
           <el-form-item label="停止位">
-            <el-select v-model.number="port.stopBits">
+            <el-select :disabled="index==1" v-model.number="port.stopBits">
               <el-option :value="1" label="1 位" />
               <el-option :value="2" label="2 位" />
             </el-select>
           </el-form-item>
 
           <el-form-item label="校验方式">
-            <el-select v-model="port.parityStr">
+            <el-select :disabled="index==1" v-model="port.parityStr">
               <el-option label="无校验" value="none" />
               <el-option label="奇校验" value="odd" />
               <el-option label="偶校验" value="even" />

@@ -121,7 +121,7 @@ const loadDeviceConfig = async () => {
     }
 
     const topic = `/server/cmd/${device.value.id}`
-    const modules = ['basic','interface', 'network', 'channels'];
+    const modules = ['basic','interface', 'network', 'channels',`modbus`];
     const delay = 200;
 
     modules.forEach((module, index) => {
@@ -159,7 +159,7 @@ const handleMqttMessage = (event: any, data: any) => {
     return
   }
 
-  console.log("接收设备端配置:", msg)
+  //console.log("接收设备端配置:", msg)
 
     // flag 用于区分模块
     const flag = msg.flag
@@ -264,7 +264,7 @@ const saveConfig = async () => {
       ...allConfig.basic
     }
     let success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(basicMsg), options: { qos: 1 } })
-    if (success) console.log(`发送 basic 配置: -> ${topic} ${JSON.stringify(basicMsg)}`)
+    //if (success) console.log(`发送 basic 配置: -> ${topic} ${JSON.stringify(basicMsg)}`)
 
     // 2️⃣ 保存 Interface 配置
     const interfaceMsg = {
@@ -274,7 +274,7 @@ const saveConfig = async () => {
       uart2: allConfig.interface.uart2 || {}
     }
     success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(interfaceMsg), options: { qos: 1 } })
-    if (success) console.log(`发送 interface 配置: -> ${topic} ${JSON.stringify(interfaceMsg)}`)
+    //if (success) console.log(`发送 interface 配置: -> ${topic} ${JSON.stringify(interfaceMsg)}`)
 
 
     // 4️⃣ 保存 Channels 配置
@@ -284,7 +284,7 @@ const saveConfig = async () => {
       channels: allConfig.networkChannels || []
     }
     success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(channelsMsg), options: { qos: 1 } })
-    if (success) console.log(`发送 channels 配置: -> ${topic} ${JSON.stringify(channelsMsg)}`)
+    //if (success) console.log(`发送 channels 配置: -> ${topic} ${JSON.stringify(channelsMsg)}`)
 
     // 5️⃣ 保存 Modbus 配置
     const modbusMsg = {
@@ -292,8 +292,8 @@ const saveConfig = async () => {
       flag: 'modbus',
       data: allConfig.modbus || {}
     }
-    //success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(modbusMsg), options: { qos: 1 } })
-    //if (success) console.log(`发送 modbus 配置: -> ${topic} ${JSON.stringify(modbusMsg)}`)
+    success = window.electronAPI.mqttPublish({ topic, message: JSON.stringify(modbusMsg), options: { qos: 1 } })
+    if (success) console.log(`发送 modbus 配置: -> ${topic} ${JSON.stringify(modbusMsg)}`)
 
     // 6️⃣ 保存 Scene 配置
     const sceneMsg = {

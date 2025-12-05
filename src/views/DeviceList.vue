@@ -1,6 +1,6 @@
 <template>
   <div class="dtu-list-container">
-    <h2 class="title">DTU 列表</h2>
+    <h2 class="title">DTU 列表 </h2>
 
     <!-- 搜索 -->
     <div class="device-search">
@@ -13,7 +13,14 @@
       <el-button type="primary"  @click="searchDevices">
         搜索
       </el-button>
-
+      <!-- 批量操作按钮 -->
+      <el-button
+          type="primary"
+          :disabled="multipleSelection.length === 0"
+          @click="batchUpgrade"
+      >
+        批量升级
+      </el-button>
     </div>
 
     <!-- 设备表格 -->
@@ -23,7 +30,9 @@
         stripe
         border
         :row-style="{ height: '48px' }"
+        @selection-change="handleSelectionChange"
     >
+      <el-table-column type="selection" width="55" />
       <el-table-column prop="name" label="设备名称" width="160" resizable />
       <el-table-column prop="id" label="设备号" width="180" resizable />
       <el-table-column prop="ip" label="IP 地址" width="120" resizable />
@@ -53,7 +62,7 @@
             <el-button
                 type="warning"
                 size="small"
-                @click="openUpgradeDialog(row)">
+                @click="openUpgradeDialog(row,false)">
               升级
             </el-button>
             <el-button
@@ -72,12 +81,12 @@
   <!-- 升级对话框 -->
   <el-dialog
       v-model="upgradeDialogVisible"
-      title="设备升级"
+      :title="isBatch==false?'设备升级':'批量升级'"
       width="500px"
       :before-close="handleDialogClose"
   >
     <div class="upgrade-content">
-      <div v-if="currentDevice" class="device-info">
+      <div v-if="currentDevice && !isBatch" class="device-info">
         <p><strong>目标设备:</strong> {{ currentDevice.id }}</p>
         <p><strong>IP地址:</strong> {{ currentDevice.ip }}</p>
         <p><strong>当前版本:</strong> {{ currentDevice.firmware }}</p>
@@ -219,7 +228,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import {ref, computed, onMounted, nextTick, watch} from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
@@ -232,6 +241,7 @@ const devices = ref<any[]>([])
 const filteredDevices = ref<any[]>([])
 
 // 升级相关状态
+const isBatch = ref(false)
 const upgradeDialogVisible = ref(false)
 const currentDevice = ref<any>(null)
 const selectedFile = ref<File | null>(null)
@@ -255,6 +265,27 @@ const quickCommands = ref([
   { name: '清空终端', topic: '', message: '', action: 'clear' },
   { name: '通知设备连接', topic: '', message: '', action: 'connect' }
 ])
+
+
+// 选中的设备
+const multipleSelection = ref<any[]>([])
+
+// 选中行变化
+function handleSelectionChange(val: any[]) {
+  multipleSelection.value = val
+}
+
+// 批量升级操作
+function batchUpgrade() {
+  console.log('批量升级设备:', multipleSelection.value)
+  // 这里调用你的批量升级接口或逻辑
+
+  openUpgradeDialog(null,true);
+
+  //清空选择框，让设备列表刷新
+  //multipleSelection.value = []
+
+}
 
 // 搜索设备
 const normalize = (str: string) =>
@@ -281,11 +312,12 @@ const goToConfig = (device: any) => {
 }
 
 // 打开升级对话框
-const openUpgradeDialog = (device: any = null) => {
+const openUpgradeDialog = (device: any = null,batch:boolean ) => {
   currentDevice.value = device
   selectedFile.value = null
   fileList.value = []
   upgradeDialogVisible.value = true
+  isBatch.value = batch
 }
 
 // 处理文件选择
@@ -310,15 +342,18 @@ const submitUpgrade = async () => {
     return
   }
 
-  if (!currentDevice.value) {
+  if (!isBatch.value && !currentDevice.value) {
     ElMessage.warning('未选择目标设备')
     return
   }
 
   // 确认升级
   try {
+
+    let message = isBatch.value ? `确认要批量升级吗？` :`确定要对设备 ${currentDevice.value.id} (${currentDevice.value.ip}) 进行升级吗？`  ;
+
     await ElMessageBox.confirm(
-        `确定要对设备 ${currentDevice.value.id} (${currentDevice.value.ip}) 进行升级吗？`,
+        message,
         '确认升级',
         {
           confirmButtonText: '确定升级',
@@ -346,27 +381,89 @@ const submitUpgrade = async () => {
       throw new Error(`文件保存失败: ${saveResult.error}`)
     }
 
-    // 3. 发送升级命令到设备（包含完整的下载地址）
-    const upgradeResult = await window.electronAPI.sendUpgradeCommand(
-        currentDevice.value.ip,
-        selectedFile.value.name,
-        {
-          port: 8080, // 文件服务器端口，可以根据实际情况调整
-          fileSize: selectedFile.value.size
-        }
-    )
 
-    if (!upgradeResult.success) {
-      throw new Error(`升级命令发送失败: ${upgradeResult.error}`)
+    if(!isBatch.value){
+      // 3. 发送升级命令到设备（包含完整的下载地址）
+      const upgradeResult = await window.electronAPI.sendUpgradeCommand(
+          currentDevice.value.ip,
+          selectedFile.value.name,
+          {
+            port: 8080, // 文件服务器端口，可以根据实际情况调整
+            fileSize: selectedFile.value.size
+          }
+      )
+
+      if (!upgradeResult.success) {
+        throw new Error(`升级命令发送失败: ${upgradeResult.error}`)
+      }
+
+      ElMessage.success({
+        message: `升级命令已发送！设备可以从以下地址下载文件：${upgradeResult.downloadUrl}`,
+        duration: 8000, // 显示时间更长
+        showClose: true
+      })
+
+      console.log('📤 升级文件下载地址:', upgradeResult.downloadUrl)
+
+      //打开终端串口
+      openTerminalDialog(currentDevice.value)
+
+      //使用mqtt推送升级
+      const topic = `/server/cmd/${currentDevice.value.id}`
+      const message = JSON.stringify({
+        type: 'ota',
+        downloadUrl: upgradeResult.downloadUrl
+      });
+      window.electronAPI.mqttPublish({
+        topic: topic,
+        message: message,
+        options: { qos: 1 }
+      });
+
     }
+    //批量推送设备升级
+    else{
 
-    ElMessage.success({
-      message: `升级命令已发送！设备可以从以下地址下载文件：${upgradeResult.downloadUrl}`,
-      duration: 8000, // 显示时间更长
-      showClose: true
-    })
+      // 遍历每台设备进行升级
+      for (const device of multipleSelection.value) {
+        try {
+          const upgradeResult = await window.electronAPI.sendUpgradeCommand(
+              device.ip,
+              selectedFile.value.name,
+              {
+                port: 8080,
+                fileSize: selectedFile.value.size
+              }
+          )
 
-    console.log('📤 升级文件下载地址:', upgradeResult.downloadUrl)
+          if (!upgradeResult.success) {
+            throw new Error(upgradeResult.error)
+          }
+
+          // 使用 MQTT 推送升级命令
+          const topic = `/server/cmd/${device.id}`
+          const message = JSON.stringify({
+            type: 'ota',
+            downloadUrl: upgradeResult.downloadUrl
+          })
+          await window.electronAPI.mqttPublish({
+            topic,
+            message,
+            options: { qos: 1 }
+          })
+
+          ElMessage.success({
+            message: `设备 ${device.id} 升级命令已发送`,
+            duration: 5000
+          })
+
+        } catch (err: any) {
+          console.error(`设备 ${device.id} 升级失败:`, err)
+          ElMessage.error(`设备 ${device.id} 升级失败: ${err.message}`)
+        }
+      }
+      multipleSelection.value = []
+    }
 
     // 关闭对话框
     upgradeDialogVisible.value = false
@@ -375,21 +472,6 @@ const submitUpgrade = async () => {
     selectedFile.value = null
     fileList.value = []
 
-
-    //打开终端串口
-    openTerminalDialog(currentDevice.value)
-
-    //使用mqtt推送升级
-    const topic = `/server/cmd/${currentDevice.value.id}`
-    const message = JSON.stringify({
-      type: 'ota',
-      downloadUrl: upgradeResult.downloadUrl
-    });
-    window.electronAPI.mqttPublish({
-      topic: topic,
-      message: message,
-      options: { qos: 1 }
-    });
 
   } catch (error: any) {
     console.error('升级失败:', error)
@@ -667,9 +749,10 @@ onMounted(() => {
 
   // 监听设备发现（这个事件应该由主进程在扫描到设备时触发）
   window.electronAPI.onDeviceDiscovered((list: any[]) => {
-    // 直接替换，不使用缓存
-    devices.value = [...list]  // 使用展开运算符创建新数组
-    filteredDevices.value = [...list]
+    if(!multipleSelection.value || !multipleSelection.value.length ||multipleSelection.value.length==0){
+      devices.value = [...list]
+      filteredDevices.value = [...list]
+    }
   })
 
   // 监听 MQTT 消息
