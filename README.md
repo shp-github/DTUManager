@@ -1,6 +1,18 @@
 
 
 
+
+![1.png](image/1.png)
+![2.png](image/2.png)
+![3.png](image/3.png)
+![4.png](image/4.png)
+![5.png](image/5.png)
+
+
+
+
+
+
 node:18
 
 # 配置 npm 镜像为淘宝镜像（国内）
