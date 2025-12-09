@@ -13,6 +13,7 @@
       <el-button type="primary"  @click="searchDevices">
         搜索
       </el-button>
+
       <!-- 批量操作按钮 -->
       <el-button
           type="primary"
@@ -20,6 +21,10 @@
           @click="batchUpgrade"
       >
         批量升级
+      </el-button>
+
+      <el-button type="primary"  @click="mqttClientList">
+        MQTT客户端列表
       </el-button>
     </div>
 
@@ -168,6 +173,7 @@
             {{ isTerminalConnected ? '断开连接' : '连接终端' }}
           </el-button>
           <el-button size="small" @click="clearTerminal">清空终端</el-button>
+          <el-button size="small" @click="mqttClientList">设备列表</el-button>
           <el-button
               size="small"
               @click="toggleTerminalFullscreen"
@@ -302,6 +308,13 @@ const searchDevices = () => {
         normalize(d.id).includes(keyword) || normalize(d.ip).includes(keyword)
     )
   }
+}
+
+const mqttClientList = () => {
+
+  const list = window.electronAPI.mqttGetClients();
+  console.log(JSON.stringify(list));
+
 }
 
 // 跳转配置页
@@ -516,9 +529,6 @@ const formatRuntime = (seconds: number) => {
 
 // 打开终端对话框
 const openTerminalDialog = (device: any) => {
-
-  //通知设备连接mqtt
-  connectMqtt(device)
 
   currentDevice.value = device
   terminalDialogVisible.value = true

@@ -11,18 +11,28 @@
             返回
           </el-button>
 
-          <el-button class="action-btn" type="primary" @click="connectMqtt">
-            通知连接
-          </el-button>
+          <div class="steps">
+            <div class="step" @click="connectMqtt">
+              通知连接
+            </div>
+            <div class="arrow">→</div>
 
-          <el-button class="action-btn" type="primary" @click="loadDeviceConfig">
-            读取配置
-          </el-button>
+            <div class="step" @click="loadDeviceConfig">
+              读取
+            </div>
+            <div class="arrow">→</div>
 
-          <el-button class="action-btn" type="primary" @click="saveConfig">
-            <el-icon><DocumentAdd /></el-icon>
-            保存
-          </el-button>
+            <div class="step" @click="saveConfig">
+              <el-icon><DocumentAdd /></el-icon>
+              保存
+            </div>
+            <div class="arrow">→</div>
+
+            <div class="step" @click="reboot">
+              重启生效
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -130,8 +140,8 @@ const loadDeviceConfig = async () => {
 
       console.log(success ? `✓ 发送${module}配置读取命令 (${index+1}/${modules.length})` : `✗ ${module}配置读取命令发送失败`)
 
-      // 延迟500ms（最后一个模块不需要延迟）
-      if (index < modules.length - 1) await delay(500)
+      // 延迟200ms（最后一个模块不需要延迟）
+      if (index < modules.length - 1) await delay(200)
     }
 
     console.log('✅ 所有配置读取命令发送完成')
@@ -161,7 +171,7 @@ const handleMqttMessage = (event: any, data: any) => {
     return
   }
 
-  //console.log("接收设备端配置:", msg)
+    console.log("接收设备端配置:", msg)
 
     // flag 用于区分模块
     const flag = msg.flag
@@ -229,16 +239,6 @@ onMounted(() => {
   //监听设备消息
   window.electronAPI.deviceConfigMessage(handleMqttMessage)
 
-  setTimeout(() => {
-    //通知设备连接mqtt
-    connectMqtt();
-  }, 500);
-
-  setTimeout(() => {
-    //读取配置
-    loadDeviceConfig();
-  }, 1000);
-
   runtimeTimer = window.setInterval(() => {
     if (device.value && device.value.runtime !== undefined) {
       device.value.runtime += 1
@@ -255,6 +255,14 @@ onBeforeUnmount(() => {
   clearInterval(runtimeTimer)
   window.electronAPI.off('menu-action', () => {})
 })
+
+
+const reboot = () => {
+  console.log('通知设备重启:', device.value.ip)
+  window.electronAPI.deviceReboot(device.value.ip)
+  ElMessage.success('已通知设备重启')
+}
+
 
 // 返回
 const goBack = () => router.push({ name: 'DeviceList' })
@@ -317,13 +325,13 @@ const saveConfig = async () => {
 
     // 依次发送每个配置，每条消息之间间隔500毫秒
     for (let msg of configMessages) {
-      const success = window.electronAPI.mqttPublish({ ...msg, options: { qos: 1 } })
+      const success = window.electronAPI.mqttPublish({ ...msg, options: { qos: 2 } })
       if (success) {
         console.log(`发送配置: -> ${msg.topic} ${msg.message}`)
       } else {
         console.error(`发送配置失败: ${msg.topic}`)
       }
-      await sleep(300) // 等待500毫秒
+      await sleep(200)
     }
 
     // 读取配置
@@ -421,4 +429,33 @@ const saveConfig = async () => {
   overflow-y: auto;
   padding: 15px;
 }
+
+
+.steps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.step {
+  padding: 6px 12px;
+  background-color: #409eff;
+  color: white;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: background-color 0.2s;
+}
+
+.step:hover {
+  background-color: #66b1ff;
+}
+
+.arrow {
+  font-weight: bold;
+  font-size: 18px;
+  color: #606266;
+}
+
 </style>

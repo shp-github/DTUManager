@@ -173,7 +173,7 @@ udpServer.on('message', (msg, rinfo) => {
 });
 
 // 定义设备超时时间（毫秒）
-const DEVICE_TIMEOUT = 10000;
+const DEVICE_TIMEOUT = 11000;
 
 // 定时清理离线设备
 setInterval(() => {
@@ -209,7 +209,7 @@ setInterval(() => {
             })
         );
     }
-}, 3000);
+}, 1000);
 
 
 
@@ -595,7 +595,9 @@ ipcMain.handle('mqtt-get-status', async () => {
 
 ipcMain.handle('mqtt-get-clients', async () => {
     if (mqttServer) {
-        return mqttServer.getConnectedClients();
+        let connectedClients = mqttServer.getConnectedClients();
+        console.log('connectedClients',JSON.stringify(connectedClients));
+        return connectedClients;
     }
     return [];
 });

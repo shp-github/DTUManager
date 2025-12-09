@@ -60,7 +60,7 @@
                 <el-button size="small" type="primary" @click="addMapping(row)">添加映射</el-button>
               </div>
 
-              <el-table :data="row.mappings" style="margin-top:10px;">
+              <el-table :data="row.arr" style="margin-top:10px;">
                 <el-table-column label="键值">
                   <template #default="{ row: m }">
                     <el-input v-model="m.key" @click.stop />
@@ -103,20 +103,11 @@
 
         <!-- 普通列 -->
         <el-table-column type="index" label="#" width="40"/>
-        <el-table-column label="采集周期(秒)" width="140">
-          <template #default="{ row }">
-            <el-input-number v-model="row.cycle" :min="1" @click.stop />
-          </template>
-        </el-table-column>
-        <el-table-column label="单独传" width="120">
-          <template #default="{ row }">
-            <el-switch v-model="row.independent" @click.stop />
-          </template>
-        </el-table-column>
+
         <el-table-column label="从机地址" width="160">
           <template #default="{ row }">
             <el-input-number
-                v-model.number="row.slaveAddress"
+                v-model.number="row.addr"
                 :min="1"
                 :max="247"
                 @input.stop
@@ -125,7 +116,7 @@
         </el-table-column>
         <el-table-column label="功能码" width="120">
           <template #default="{ row }">
-            <el-select v-model="row.functionCode" @click.stop>
+            <el-select v-model="row.fc" @click.stop>
               <el-option label="01" value="01"/>
               <el-option label="02" value="02"/>
               <el-option label="03" value="03"/>
@@ -135,12 +126,12 @@
         </el-table-column>
         <el-table-column label="起始寄存器" width="140">
           <template #default="{ row }">
-            <el-input v-model="row.startRegister" type="number" min="0" @input.stop />
+            <el-input v-model="row.reg" type="number" min="0" @input.stop />
           </template>
         </el-table-column>
         <el-table-column label="寄存器数量" width="140">
           <template #default="{ row }">
-            <el-input v-model="row.registerCount" type="number" min="1" @input.stop />
+            <el-input v-model="row.size" type="number" min="1" @input.stop />
           </template>
         </el-table-column>
         <el-table-column label="操作" width="180">
@@ -214,14 +205,11 @@ function addCommand() {
     modbusConfig.value.commands = []
   }
   modbusConfig.value.commands.push({
-    id: nanoid(),
-    cycle: 10,
-    independent: true,
-    slaveAddress: 1,
-    functionCode: '03',
-    startRegister: 0,
-    registerCount: 1,
-    mappings: []
+    addr: 1,
+    fc: '03',
+    reg: 0,
+    size: 1,
+    arr: []
   })
 }
 
@@ -236,14 +224,14 @@ function copyCommand(i: number) {
   modbusConfig.value.commands.splice(i + 1, 0, {
     ...cmd,
     id: nanoid(),
-    mappings: cmd.mappings.map(m => ({ ...m }))
+    arr: cmd.arr.map(m => ({ ...m }))
   })
 }
 
 // 添加映射
 function addMapping(cmd: any) {
   console.log('添加映射：',JSON.stringify(cmd))
-  cmd.mappings.push({
+  cmd.arr.push({
     key: 'a1',
     address: 0,
     length: 1,
@@ -253,13 +241,13 @@ function addMapping(cmd: any) {
 
 // 删除映射
 function removeMapping(cmd: any, index: number) {
-  cmd.mappings.splice(index, 1)
+  cmd.arr.splice(index, 1)
 }
 
 // 复制映射
 function copyMapping(cmd: any, index: number) {
-  const m = cmd.mappings[index]
-  cmd.mappings.splice(index + 1, 0, { ...m })
+  const m = cmd.arr[index]
+  cmd.arr.splice(index + 1, 0, { ...m })
 }
 </script>
 
