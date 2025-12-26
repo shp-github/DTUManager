@@ -1,21 +1,22 @@
+// main.ts - 完整版
 import { app, BrowserWindow, shell, ipcMain, Menu, globalShortcut } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'path'
 import os from 'os'
-import dgram from 'dgram'
-import fileServer from './fileServer';
-import fs from 'fs';
+import fs from 'fs'
 
-// 在现有导入的基础上添加
+// 导入服务模块
+import fileServer from './fileServer'
 import MQTTServer from './mqtt-server'
+import { UDPServer } from './udp-server'
+import { SimpleDHCPServer } from './simple-dhcp-server'
 
-// 在现有变量声明后添加
-let mqttServer: MQTTServer | null = null
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+// 应用路径配置
 process.env.APP_ROOT = path.join(__dirname, '../..')
 export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron')
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
@@ -31,16 +32,20 @@ if (os.release().startsWith('6.1')) app.disableHardwareAcceleration()
 // Windows 10+ 通知图标
 if (process.platform === 'win32') app.setAppUserModelId(app.getName())
 
+// 单实例锁
 if (!app.requestSingleInstanceLock()) {
     app.quit()
     process.exit(0)
 }
 
+// 全局变量
 let win: BrowserWindow | null = null
+let mqttServer: MQTTServer | null = null
+let udpServer: UDPServer | null = null
+let dhcpServer: SimpleDHCPServer | null = null
+
 const preload = path.join(__dirname, '../preload/index.mjs')
 const indexHtml = path.join(RENDERER_DIST, 'index.html')
-
-import type { MenuItemConstructorOptions } from 'electron'
 
 // ----------------- 创建主窗口 -----------------
 function createWindow() {
@@ -56,6 +61,7 @@ function createWindow() {
         },
     })
 
+    // 加载页面
     if (VITE_DEV_SERVER_URL) {
         win.loadURL(VITE_DEV_SERVER_URL)
         win.webContents.openDevTools()
@@ -65,200 +71,325 @@ function createWindow() {
 
     win.maximize()
 
+    // 处理外部链接
     win.webContents.setWindowOpenHandler(({ url }) => {
         if (url.startsWith('https:')) shell.openExternal(url)
         return { action: 'deny' }
     })
 
+    // 页面加载完成
     win.webContents.on('did-finish-load', () => {
         win?.webContents.send('main-process-message', new Date().toLocaleString())
     })
 
-    // 中文菜单
-    const menuTemplate: MenuItemConstructorOptions[] = [
+    // 创建中文菜单
+    createApplicationMenu()
+}
+
+// ----------------- 创建应用菜单 -----------------
+function createApplicationMenu() {
+    const menuTemplate: Menu.MenuItemConstructorOptions[] = [
         {
-            label: '文件',
+            label: '服务器',
             submenu: [
-                { label: '新建配置', click: () => win?.webContents.send('menu-action', 'new') },
-                { label: '保存配置', click: () => win?.webContents.send('menu-action', 'save') },
-                { type: 'separator' },
-                { label: '退出', role: 'quit' }
-            ]
+                {
+                    label: '重启UDP服务',
+                    click: async () => {
+                        if (udpServer) {
+                            await udpServer.stop()
+                            const result = await udpServer.start()
+                            if (result.success) {
+                                win?.webContents.send('server-message', 'UDP服务已重启')
+                            }
+                        }
+                    },
+                },
+                {
+                    label: '重启MQTT服务',
+                    click: async () => {
+                        if (mqttServer) {
+                            await mqttServer.stop()
+                            const result = await mqttServer.start()
+                            if (result.success) {
+                                win?.webContents.send('server-message', 'MQTT服务已重启')
+                            }
+                        }
+                    },
+                },
+            ],
         },
         {
-            label: '编辑',
+            label: '工具',
             submenu: [
-                { label: '撤销', role: 'undo' },
-                { label: '重做', role: 'redo' },
-                { type: 'separator' },
-                { label: '剪切', role: 'cut' },
-                { label: '复制', role: 'copy' },
-                { label: '粘贴', role: 'paste' }
-            ]
+                { label: '刷新设备列表', click: () => win?.webContents.send('menu-action', 'refresh-devices') },
+                { label: '扫描网络设备', click: () => win?.webContents.send('menu-action', 'scan-network') },
+                { label: '开发工具', role: 'toggleDevTools' },
+            ],
         },
-        {
-            label: '帮助',
-            submenu: [
-                { label: '关于', click: () => win?.webContents.send('menu-action', 'about') }
-            ]
-        }
     ]
+
     Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate))
 }
 
-// =================== UDP 模块 ===================
-const UDP_DISCOVERY_PORT = 4210
-const UDP_CONFIG_PORT = 4211
-const devices = new Map<string, any>()
+// ----------------- 启动所有服务 -----------------
+async function startAllServices() {
+    console.log('🚀 正在启动所有服务...')
 
-const udpServer = dgram.createSocket('udp4')
+    //启动DHCP服务器
+    await startDHCPServer()
 
-// 监听设备广播
-udpServer.on('message', (msg, rinfo) => {
+    // 1. 启动文件服务器
+    const filePort = await startFileServer(8080)
+    if (!filePort) {
+        console.warn('⚠️ 文件服务器启动失败，某些功能可能受限')
+    }
+
+    // 2. 启动UDP服务
+    await startUDPServer()
+
+    // 3. 启动MQTT服务
+    await startMQTTServer()
+
+    console.log('✅ 所有服务已启动完成')
+}
+
+// 启动DHCP服务器
+async function startDHCPServer(): Promise<boolean> {
     try {
-        const payload = JSON.parse(msg.toString());
+        dhcpServer = new SimpleDHCPServer()
 
-        if (payload.type === 'discover') {
-            const id = payload.id || rinfo.address;
-            const currentTime = Date.now(); // 使用时间戳
+        const started = await dhcpServer.start()
+        if (started) {
+            console.log('✅ DHCP服务器已启动')
 
-            // 检查设备是否已存在
-            if (devices.has(id)) {
-                // 更新已有设备
-                const existingDevice = devices.get(id);
-                existingDevice.lastSeen = currentTime; // 更新时间戳
-
-                // 可选：更新其他可能变化的信息
-                if (payload.runtime !== undefined) existingDevice.runtime = payload.runtime;
-                if (payload.RSSI !== undefined) existingDevice.RSSI = payload.RSSI;
-                if (payload.name) existingDevice.name = payload.name;
-                if (payload.firmware) existingDevice.firmware = payload.firmware;
-                if (payload.heart_interval) existingDevice.heart_interval = payload.heart_interval;
-
-                console.log(`[UPDATE] 更新设备 ${id} 的心跳时间`);
-            } else {
-                // 新增设备
-                devices.set(id, {
-                    name: payload.name || `设备-${id}`,
-                    id,
-                    mac: payload.mac || "未知",
-                    ip: payload.ip || rinfo.address,
-                    networkType: payload.networkType || "未知",
-                    RSSI: payload.RSSI ?? null,
-                    runtime: payload.runtime ?? 0,
-                    firmware: payload.firmware || "未知",
-                    heart_interval: payload.heart_interval || 5,
-                    lastSeen: currentTime // 使用时间戳，不是字符串
-                });
-
-                console.log(`[DISCOVERY] 发现新设备: ${id} @ ${rinfo.address}`);
-
-
-            }
-        }
-
-        // 立即通知前端有新设备
-        win?.webContents.send(
-            'udp-device-discovered',
-            Array.from(devices.values()).map(device => {
-                const { lastSeen, ...deviceData } = device;
-                return deviceData;
+            // 监听DHCP事件
+            dhcpServer.on('device-registered', ({ mac, ip }) => {
+                console.log(`📱 DHCP设备注册: ${mac} -> ${ip}`)
+                win?.webContents.send('dhcp-device-registered', { mac, ip })
             })
-        );
 
-    } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.warn('[WARNING] Failed to parse UDP message:', message);
-    }
-});
-
-// 定义设备超时时间（毫秒）
-const DEVICE_TIMEOUT = 11000;
-
-// 定时清理离线设备
-setInterval(() => {
-    const now = Date.now();
-    let changed = false;
-
-    for (const [id, device] of devices.entries()) {
-        // 检查 device.lastSeen 是否存在且是数字
-        if (device.lastSeen && typeof device.lastSeen === 'number') {
-            if (now - device.lastSeen > DEVICE_TIMEOUT) {
-                console.log(`[TIMEOUT] Device offline: ${id} (${device.ip})`);
-                devices.delete(id);
-                changed = true;
-                console.log(`设备 ${id} 已离线`);
-            }
+            return true
         } else {
-            // 如果 lastSeen 不是数字，可能是旧格式，需要修复或删除
-            console.warn(`设备 ${id} 的 lastSeen 格式错误: ${device.lastSeen}`);
-            // 可以删除这个设备，或者尝试修复
-            devices.delete(id);
-            changed = true;
+            console.warn('⚠️ DHCP服务器启动失败，设备可能需要手动配置IP')
+            return false
+        }
+    } catch (error) {
+        console.error('❌ 启动DHCP服务器时异常:', error)
+        return false
+    }
+}
+
+// 停止DHCP服务器
+async function stopDHCPServer(): Promise<void> {
+    if (dhcpServer) {
+        dhcpServer.stop()
+        dhcpServer = null
+        console.log('✅ DHCP服务器已停止')
+    }
+}
+
+// ----------------- 启动文件服务器 -----------------
+async function startFileServer(defaultPort: number): Promise<number | null> {
+    try {
+        // 尝试默认端口
+        const result = await fileServer.start(defaultPort)
+        if (result.success) {
+            console.log(`✅ 文件服务器已启动，端口: ${defaultPort}`)
+            return defaultPort
+        }
+
+        // 尝试其他端口
+        for (let port = defaultPort + 1; port <= defaultPort + 10; port++) {
+            const retryResult = await fileServer.start(port)
+            if (retryResult.success) {
+                console.log(`✅ 文件服务器已启动，端口: ${port}`)
+                return port
+            }
+        }
+
+        console.error('❌ 文件服务器启动失败')
+        return null
+    } catch (error) {
+        console.error('❌ 文件服务器启动异常:', error)
+        return null
+    }
+}
+
+// ----------------- 启动UDP服务 -----------------
+async function startUDPServer() {
+    try {
+        udpServer = new UDPServer({
+            discoveryPort: 4210,
+            configPort: 4211,
+            deviceTimeout: 11000, // 11秒超时
+        })
+
+        if (win) {
+            udpServer.setWindow(win)
+        }
+
+        const result = await udpServer.start()
+        if (result.success) {
+            console.log('✅ UDP服务已启动')
+
+            // 监听UDP服务事件
+            udpServer.on('device-discovered', (device) => {
+                console.log(`📱 发现新设备: ${device.name} (${device.ip})`)
+                win?.webContents.send('device-discovered', device)
+            })
+
+            udpServer.on('device-offline', (deviceId) => {
+                console.log(`📱 设备离线: ${deviceId}`)
+                win?.webContents.send('device-offline', deviceId)
+            })
+
+            udpServer.on('error', (err) => {
+                console.error('❌ UDP服务错误:', err)
+                win?.webContents.send('server-error', { service: 'UDP', error: err.message })
+            })
+        } else {
+            console.error('❌ UDP服务启动失败:', result.error)
+        }
+    } catch (error) {
+        console.error('❌ 启动UDP服务时异常:', error)
+    }
+}
+
+// ----------------- 启动MQTT服务 -----------------
+async function startMQTTServer() {
+    try {
+        mqttServer = new MQTTServer({ tcpPort: 1883 })
+        const result = await mqttServer.start()
+
+        if (result.success) {
+            console.log('✅ MQTT服务器启动成功')
+
+            // 监听MQTT事件
+            mqttServer.on('clientConnected', (clientInfo) => {
+                console.log(`📱 MQTT设备连接: ${clientInfo.id}`)
+                win?.webContents.send('mqtt-client-connected', clientInfo)
+            })
+
+            mqttServer.on('clientDisconnected', (clientInfo) => {
+                console.log(`📱 MQTT设备断开: ${clientInfo.id}`)
+                win?.webContents.send('mqtt-client-disconnected', clientInfo)
+            })
+
+            mqttServer.on('messagePublished', (message) => {
+                if (message.client) {
+                    win?.webContents.send('mqtt-message-published', message)
+                    win?.webContents.send('device-config-message', message)
+                }
+            })
+
+            mqttServer.on('error', (err) => {
+                console.error('❌ MQTT服务错误:', err)
+                win?.webContents.send('server-error', { service: 'MQTT', error: err.message })
+            })
+        } else {
+            console.error('❌ MQTT服务器启动失败:', result.error)
+        }
+    } catch (error) {
+        console.error('❌ 创建MQTT服务器时出错:', error)
+    }
+}
+
+// ----------------- 停止所有服务 -----------------
+async function stopAllServices() {
+    console.log('🛑 正在停止所有服务...')
+
+    // 停止文件服务器
+    try {
+        fileServer.stop()
+        console.log('✅ 文件服务器已停止')
+    } catch (error) {
+        console.error('❌ 停止文件服务器时出错:', error)
+    }
+
+    // 停止UDP服务
+    if (udpServer) {
+        try {
+            await udpServer.stop()
+            console.log('✅ UDP服务已停止')
+        } catch (error) {
+            console.error('❌ 停止UDP服务时出错:', error)
         }
     }
 
-    if (changed) {
-        // 通知前端更新列表
-        win?.webContents.send(
-            'udp-device-discovered',
-            Array.from(devices.values()).map(device => {
-                // 返回给前端的数据，排除 lastSeen 字段
-                const { lastSeen, ...deviceData } = device;
-                return deviceData;
-            })
-        );
+    // 停止MQTT服务
+    if (mqttServer) {
+        try {
+            await mqttServer.stop()
+            console.log('✅ MQTT服务已停止')
+        } catch (error) {
+            console.error('❌ 停止MQTT服务时出错:', error)
+        }
     }
-}, 1000);
 
+    if (dhcpServer) {
+        try {
+            await stopDHCPServer()
+            console.log('✅ DHCP服务已停止')
+        } catch (error) {
+            console.error('❌ 停止DHCP服务时出错:', error)
+        }
+    }
 
-
-
-// 启动 UDP 服务器
-udpServer.bind(UDP_DISCOVERY_PORT, () => {
-    console.log(`✅ Listening UDP discovery port ${UDP_DISCOVERY_PORT}`)
-})
+    console.log('✅ 所有服务已停止')
+}
 
 // =================== IPC 处理器 ===================
 
-// 渲染进程获取设备列表
+// 获取设备列表
 ipcMain.handle('getDevices', async () => {
-    return Array.from(devices.values())
+    return udpServer ? udpServer.getDevices() : []
 })
 
-// 渲染进程发送配置命令
+// 获取设备详情
+ipcMain.handle('getDevice', async (_event, deviceId) => {
+    return udpServer ? udpServer.getDevice(deviceId) : null
+})
+
+// 发送配置到单个设备
 ipcMain.handle('sendConfig', async (_event, { ip, config }) => {
-    const sock = dgram.createSocket('udp4')
-    const msg = Buffer.from(JSON.stringify({ type: 'config', ...(config || {}) }))
-    return new Promise((resolve, reject) => {
-        sock.send(msg, UDP_CONFIG_PORT, ip, err => {
-            sock.close()
-            if (err) reject(err)
-            else resolve('ok')
-        })
-    })
+    if (!udpServer) {
+        return { success: false, error: 'UDP服务未启动' }
+    }
+    return udpServer.sendConfig(ip, config)
 })
 
-// 渲染进程调用：window.electronAPI.saveConfig(payload)
+// 批量保存配置到多个设备
 ipcMain.handle('save-config', async (_event, payload) => {
+    if (!udpServer) {
+        return { success: false, error: 'UDP服务未启动' }
+    }
+
     try {
         const entries = Object.entries(payload)
+        const results = []
+
         for (const [deviceId, config] of entries) {
-            const device = devices.get(deviceId)
+            const device = udpServer.getDevice(deviceId)
             if (device) {
-                const sock = dgram.createSocket('udp4')
-                const msg = Buffer.from(JSON.stringify({ type: 'config', ...(config || {}) as object }))
-                await new Promise<void>((resolve, reject) => {
-                    sock.send(msg, UDP_CONFIG_PORT, device.ip, (err) => {
-                        sock.close()
-                        if (err) reject(err)
-                        else resolve()
-                    })
+                const result = await udpServer.sendConfig(device.ip, config as any)
+                results.push({
+                    deviceId,
+                    success: result.success,
+                    error: result.error,
+                })
+            } else {
+                results.push({
+                    deviceId,
+                    success: false,
+                    error: '设备不存在',
                 })
             }
         }
 
-        return { success: true }
+        return {
+            success: results.every((r) => r.success),
+            results,
+        }
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         console.error('[SAVE] Error:', message)
@@ -266,69 +397,20 @@ ipcMain.handle('save-config', async (_event, payload) => {
     }
 })
 
-// 优化后的读取设备配置（带调试日志）
+// 读取设备配置
 ipcMain.handle('read-device-config', async (_event, device) => {
+    if (!udpServer) {
+        throw new Error('UDP服务未启动')
+    }
+
     if (!device || !device.ip) {
-        console.error('[READ CONFIG] 无效的 device 对象:', device)
-        throw new Error('Invalid device object')
+        throw new Error('无效的设备对象')
     }
 
-    const ip = device.ip
-    const sock = dgram.createSocket('udp4')
-    let closed = false
-    const closeSock = () => {
-        if (!closed) {
-            sock.close()
-            closed = true
-            console.log('[READ CONFIG] UDP socket 已关闭')
-        }
-    }
-
-    const msg = Buffer.from(JSON.stringify({ type: 'read_config' }))
-    console.log(`[READ CONFIG] 准备发送读取请求到设备 ${device.id} (${ip}:${UDP_CONFIG_PORT})`, msg.toString())
-
-    return new Promise((resolve, reject) => {
-        sock.send(msg, UDP_CONFIG_PORT, ip, (err) => {
-            if (err) {
-                console.error('[READ CONFIG] 发送请求失败:', err)
-                closeSock()
-                return reject(err)
-            } else {
-                console.log(`[READ CONFIG] 已发送请求到 ${ip}:${UDP_CONFIG_PORT}`)
-            }
-        })
-
-        sock.on('message', (msg, rinfo) => {
-            console.log(`[READ CONFIG] 收到 UDP 消息，来自 ${rinfo.address}:${rinfo.port}，长度 ${msg.length}`)
-            try {
-                const payload = JSON.parse(msg.toString())
-                console.log('[READ CONFIG] 消息内容:', payload)
-                if (payload.type === 'config' && rinfo.address === ip) {
-                    console.log(`[READ CONFIG] 配置已匹配，返回给前端`)
-                    closeSock()
-                    resolve(payload)
-                }
-            } catch (err) {
-                console.error('[READ CONFIG] 解析消息失败:', err)
-                closeSock()
-                reject(err)
-            }
-        })
-
-        const timer = setTimeout(() => {
-            console.error(`[READ CONFIG] 设备读取配置超时 (${ip})`)
-            closeSock()
-            reject(new Error('Device read config timeout'))
-        }, 3000)
-
-        const originalResolve = resolve
-        const originalReject = reject
-        resolve = (val) => { clearTimeout(timer); originalResolve(val) }
-        reject = (err) => { clearTimeout(timer); originalReject(err) }
-    })
+    return udpServer.readDeviceConfig(device.ip)
 })
 
-// 打开子窗口示例
+// 打开子窗口
 ipcMain.handle('open-win', (_, arg) => {
     const childWindow = new BrowserWindow({
         width: 800,
@@ -337,7 +419,7 @@ ipcMain.handle('open-win', (_, arg) => {
             preload,
             nodeIntegration: false,
             contextIsolation: true,
-        }
+        },
     })
 
     if (VITE_DEV_SERVER_URL) {
@@ -347,387 +429,274 @@ ipcMain.handle('open-win', (_, arg) => {
     }
 })
 
-// 添加文件保存的 IPC 处理器
-ipcMain.handle('save-file', async (event, { fileName, fileData }: { fileName: string; fileData: ArrayBuffer }) => {
+// 文件操作
+ipcMain.handle('save-file', async (_event, { fileName, fileData }: { fileName: string; fileData: ArrayBuffer }) => {
     try {
-        const filesDir = path.join(process.cwd(), 'files');
+        const filesDir = path.join(process.cwd(), 'files')
 
         // 确保 files 目录存在
         if (!fs.existsSync(filesDir)) {
-            fs.mkdirSync(filesDir, { recursive: true });
+            fs.mkdirSync(filesDir, { recursive: true })
         }
 
-        const filePath = path.join(filesDir, fileName);
+        const filePath = path.join(filesDir, fileName)
+        const buffer = Buffer.from(fileData)
+        fs.writeFileSync(filePath, buffer)
 
-        // 将 ArrayBuffer 转换为 Buffer 并写入文件
-        const buffer = Buffer.from(fileData);
-        fs.writeFileSync(filePath, buffer);
-
-        console.log(`✅ 文件已保存: ${filePath}`);
-        return { success: true, path: filePath };
+        console.log(`✅ 文件已保存: ${filePath}`)
+        return { success: true, path: filePath }
     } catch (error: any) {
-        console.error('❌ 文件保存失败:', error);
-        return { success: false, error: error.message };
+        console.error('❌ 文件保存失败:', error)
+        return { success: false, error: error.message }
     }
-});
+})
 
-// 获取文件列表的 IPC 处理器（可选，用于显示已上传的文件）
 ipcMain.handle('get-file-list', async () => {
     try {
-        const filesDir = path.join(process.cwd(), 'files');
+        const filesDir = path.join(process.cwd(), 'files')
 
         if (!fs.existsSync(filesDir)) {
-            return { success: true, files: [] };
+            return { success: true, files: [] }
         }
 
-        const files = fs.readdirSync(filesDir);
-        return { success: true, files };
+        const files = fs.readdirSync(filesDir)
+        return { success: true, files }
     } catch (error: any) {
-        return { success: false, error: error.message };
+        return { success: false, error: error.message }
     }
-});
+})
 
-// 设备升级 IPC 处理器 - 提供完整下载地址
-ipcMain.handle('send-upgrade-command', async (event, { deviceIp, fileName, serverInfo }) => {
-    try {
-        const sock = dgram.createSocket('udp4');
-
-        // 获取本机所有网络地址
-        const addresses = getNetworkAddresses();
-
-        // 构建完整的下载 URL（使用第一个可用的局域网 IP）
-        const localIp = addresses[0] || 'localhost';
-        const downloadUrl = `http://${localIp}:${serverInfo.port}/download/${fileName}`;
-
-        // 构建升级命令消息
-        const upgradeMessage = {
-            type: 'upgrade',
-            fileName: fileName,
-            downloadUrl: downloadUrl,
-            fileSize: serverInfo.fileSize, // 可选：文件大小
-            timestamp: Date.now(),
-            ip: localIp,
-            mqttPort:1883,
-            mqttUsername: "device",
-            mqttPassword: "123456"
-        };
-
-        const msg = Buffer.from(JSON.stringify(upgradeMessage));
-
-        return new Promise((resolve, reject) => {
-            sock.send(msg, UDP_CONFIG_PORT, deviceIp, (err) => {
-                sock.close();
-                if (err) {
-                    reject(err);
-                } else {
-                    console.log(`✅ 升级命令已发送到设备 ${deviceIp}`);
-                    console.log(`📥 下载地址: ${downloadUrl}`);
-                    resolve({
-                        success: true,
-                        downloadUrl: downloadUrl,
-                        serverIp: localIp
-                    });
-                }
-            });
-        });
-
-    } catch (error: any) {
-        console.error('❌ 发送升级命令失败:', error);
-        return { success: false, error: error.message };
+// 设备升级
+ipcMain.handle('send-upgrade-command', async (_event, { deviceIp, fileName, serverInfo }) => {
+    if (!udpServer) {
+        return { success: false, error: 'UDP服务未启动' }
     }
-});
 
-// 让设备连接mqtt服务
-ipcMain.handle('connect-mqtt', async (event, deviceIp) => {
-    console.log(`收到 MQTT 连接请求: ${deviceIp}`);
+    return udpServer.sendUpgradeCommand(deviceIp, fileName, serverInfo)
+})
 
-    return new Promise((resolve, reject) => {
-        const sock = dgram.createSocket('udp4');
+// 连接MQTT
+ipcMain.handle('connect-mqtt', async (_event, deviceIp) => {
+    if (!udpServer) {
+        return { success: false, error: 'UDP服务未启动' }
+    }
 
-        // 获取本机所有网络地址
-        const addresses = getNetworkAddresses();
+    return udpServer.sendMqttConnectCommand(deviceIp)
+})
 
-        // 构建完整的下载 URL（使用第一个可用的局域网 IP）
-        const localIp = addresses[0] || 'localhost';
+// 设备重启
+ipcMain.handle('device-reboot', async (_event, deviceIp) => {
+    if (!udpServer) {
+        return { success: false, error: 'UDP服务未启动' }
+    }
 
-        // 构建连接命令
-        const connectCommand = {
-            type: 'connect-mqtt',
-            ip: localIp
-        };
+    return udpServer.sendRebootCommand(deviceIp)
+})
 
-        const message = Buffer.from(JSON.stringify(connectCommand));
-
-        // 设置超时
-        const timeout = setTimeout(() => {
-            sock.close();
-            reject(new Error('发送命令超时（5秒）'));
-        }, 5000);
-
-        sock.send(message, UDP_CONFIG_PORT, deviceIp, (err) => {
-            clearTimeout(timeout);
-            sock.close();
-            if (err) {
-                console.error('发送 MQTT 连接命令失败:', err);
-                reject(new Error(`网络错误: ${err.message}`));
-            }
-        });
-
-        // 处理 socket 错误
-        sock.on('error', (err) => {
-            clearTimeout(timeout);
-            console.error('UDP socket 错误:', err);
-            reject(new Error(`网络错误: ${err.message}`));
-        });
-    });
-});
-
-
-// 让设备重启
-ipcMain.handle('device-reboot', async (event, deviceIp) => {
-    console.log(`收到 MQTT 连接请求: ${deviceIp}`);
-
-    return new Promise((resolve, reject) => {
-        const sock = dgram.createSocket('udp4');
-
-        // 获取本机所有网络地址
-        const addresses = getNetworkAddresses();
-
-        // 构建完整的下载 URL（使用第一个可用的局域网 IP）
-        const localIp = addresses[0] || 'localhost';
-
-        // 构建连接命令
-        const connectCommand = {
-            type: 'reboot',
-            ip: localIp
-        };
-
-        const message = Buffer.from(JSON.stringify(connectCommand));
-
-        // 设置超时
-        const timeout = setTimeout(() => {
-            sock.close();
-            reject(new Error('发送命令超时（5秒）'));
-        }, 5000);
-
-        sock.send(message, UDP_CONFIG_PORT, deviceIp, (err) => {
-            clearTimeout(timeout);
-            sock.close();
-            if (err) {
-                console.error('发送 MQTT 连接命令失败:', err);
-                reject(new Error(`网络错误: ${err.message}`));
-            }
-        });
-
-        // 处理 socket 错误
-        sock.on('error', (err) => {
-            clearTimeout(timeout);
-            console.error('UDP socket 错误:', err);
-            reject(new Error(`网络错误: ${err.message}`));
-        });
-    });
-});
-
-
-// 修复 MQTT 发布处理器 - 兼容两种参数格式
+// MQTT相关
 ipcMain.handle('mqtt-publish', async (_event, params) => {
-
-    params = params.topic
-
-    let topic, message, options;
+    let topic, message, options
 
     if (params && typeof params === 'object') {
-        topic = params.topic;
-        message = params.message;
-        options = params.options;
+        topic = params.topic
+        message = params.message
+        options = params.options
     }
 
-    console.log('🔍 MQTT发布调试 - 解析后的参数:');
-    console.log('  Topic:', topic, 'Type:', typeof topic);
-    console.log('  Message:', message, 'Type:', typeof message);
-    console.log('  Options:', options);
-
     if (!mqttServer) {
-        console.error('❌ MQTT服务器未运行');
-        return false;
+        console.error('❌ MQTT服务器未运行')
+        return false
     }
 
     try {
-        // 严格的 topic 类型检查和转换
         if (topic === null || topic === undefined) {
-            console.error('❌ Topic 为 null 或 undefined');
-            return false;
+            console.error('❌ Topic 为 null 或 undefined')
+            return false
         }
 
-        const safeTopic = String(topic).trim();
+        const safeTopic = String(topic).trim()
         if (!safeTopic) {
-            console.error('❌ Topic 为空字符串');
-            return false;
+            console.error('❌ Topic 为空字符串')
+            return false
         }
 
-        let safeMessage;
+        let safeMessage
         if (typeof message === 'string') {
-            safeMessage = message;
+            safeMessage = message
         } else if (typeof message === 'object') {
-            safeMessage = JSON.stringify(message);
+            safeMessage = JSON.stringify(message)
         } else {
-            safeMessage = String(message);
+            safeMessage = String(message)
         }
 
-        console.log('✅ 转换后的安全参数:');
-        console.log('  Safe Topic:', safeTopic, 'Type:', typeof safeTopic);
-        console.log('  Safe Message:', safeMessage, 'Type:', typeof safeMessage);
-
-        return mqttServer.publish(safeTopic, safeMessage, options);
-
+        return mqttServer.publish(safeTopic, safeMessage, options)
     } catch (error) {
-        console.error('💥 MQTT发布异常:', error);
-        return false;
+        console.error('💥 MQTT发布异常:', error)
+        return false
     }
-});
+})
 
 ipcMain.handle('mqtt-get-status', async () => {
     if (mqttServer) {
-        return mqttServer.getStatus();
+        return mqttServer.getStatus()
     }
-    return { isRunning: false };
-});
+    return { isRunning: false }
+})
 
 ipcMain.handle('mqtt-get-clients', async () => {
     if (mqttServer) {
-        let connectedClients = mqttServer.getConnectedClients();
-        console.log('connectedClients',JSON.stringify(connectedClients));
-        return connectedClients;
+        return mqttServer.getConnectedClients()
     }
-    return [];
-});
+    return []
+})
 
 ipcMain.handle('mqtt-send-config', async (_event, { deviceId, config }) => {
     if (mqttServer) {
-        const success = mqttServer.sendConfigToDevice(deviceId, config);
-        return { success };
+        const success = mqttServer.sendConfigToDevice(deviceId, config)
+        return { success }
     }
-    return { success: false, error: 'MQTT服务器未运行' };
-});
+    return { success: false, error: 'MQTT服务器未运行' }
+})
 
 ipcMain.handle('mqtt-request-config', async (_event, deviceId) => {
     if (mqttServer) {
-        const success = mqttServer.requestDeviceConfig(deviceId);
-        return { success };
+        const success = mqttServer.requestDeviceConfig(deviceId)
+        return { success }
     }
-    return { success: false, error: 'MQTT服务器未运行' };
-});
+    return { success: false, error: 'MQTT服务器未运行' }
+})
 
-// 获取本机网络地址函数
-function getNetworkAddresses(): string[] {
-    const networkInterfaces = os.networkInterfaces();
-    const addresses: string[] = [];
+// 服务控制
+ipcMain.handle('restart-udp-service', async () => {
+    if (udpServer) {
+        await udpServer.stop()
+        const result = await udpServer.start()
+        return result
+    }
+    return { success: false, error: 'UDP服务未初始化' }
+})
 
-    for (const interfaceName of Object.keys(networkInterfaces)) {
-        for (const netInterface of networkInterfaces[interfaceName]) {
+ipcMain.handle('restart-mqtt-service', async () => {
+    if (mqttServer) {
+        await mqttServer.stop()
+        const result = await mqttServer.start()
+        return result
+    }
+    return { success: false, error: 'MQTT服务未初始化' }
+})
+
+ipcMain.handle('get-service-status', async () => {
+    return {
+        udp: udpServer ? 'running' : 'stopped',
+        mqtt: mqttServer ? 'running' : 'stopped',
+        fileServer: 'running', // 文件服务器通常一直运行
+    }
+})
+
+// 获取本机IP地址
+ipcMain.handle('get-local-ip', async () => {
+    const interfaces = os.networkInterfaces()
+    const addresses: string[] = []
+
+    for (const interfaceName of Object.keys(interfaces)) {
+        // 跳过虚拟接口
+        if (interfaceName.includes('Virtual') || interfaceName.includes('vEthernet')) {
+            continue
+        }
+
+        for (const netInterface of interfaces[interfaceName] || []) {
             if (netInterface.family === 'IPv4' && !netInterface.internal) {
-                addresses.push(netInterface.address);
+                addresses.push(netInterface.address)
             }
         }
     }
 
-    return addresses;
-}
+    return addresses.length > 0 ? addresses[0] : '127.0.0.1'
+})
+
+// 网络扫描
+ipcMain.handle('scan-network', async () => {
+    // 这里可以添加网络扫描逻辑
+    // 例如使用nmap或自定义扫描
+    console.log('开始网络扫描...')
+    return { scanning: true }
+})
+
+
+// 添加IPC处理器
+ipcMain.handle('get-dhcp-leases', async () => {
+    return dhcpServer ? dhcpServer.getLeases() : []
+})
+
+ipcMain.handle('get-dhcp-status', async () => {
+    return {
+        isRunning: dhcpServer !== null,
+        leases: dhcpServer ? dhcpServer.getLeases().length : 0,
+    }
+})
+
+ipcMain.handle('restart-dhcp-service', async () => {
+    await stopDHCPServer()
+    const success = await startDHCPServer()
+    return { success }
+})
 
 // =================== 应用生命周期 ===================
 
 app.whenReady().then(async () => {
-    console.log('🎯 Electron 应用启动中...');
+    console.log('🎯 Electron 应用启动中...')
 
     // 创建主窗口
-    createWindow();
+    createWindow()
 
-    // 自动启动文件服务器
-    const result = await fileServer.start(8080);
-
-    if (!result.success) {
-        console.error('❌ 文件服务器启动失败:', result.error);
-        // 如果默认端口被占用，尝试其他端口
-        for (let port = 8081; port <= 8090; port++) {
-            const retryResult = await fileServer.start(port);
-            if (retryResult.success) {
-                break;
-            }
-        }
-    }
-
-    // 启动 MQTT 服务器
-    try {
-        mqttServer = new MQTTServer({tcpPort: 1883});
-
-        const mqttResult = await mqttServer.start();
-
-        if (mqttResult.success) {
-            console.log('✅ MQTT服务器启动成功');
-
-            // 监听MQTT事件并转发到渲染进程
-            mqttServer.on('clientConnected', (clientInfo) => {
-                console.log(`📱 设备连接: ${clientInfo.id}`);
-                win?.webContents.send('mqtt-client-connected', clientInfo);
-            });
-
-            mqttServer.on('clientDisconnected', (clientInfo) => {
-                console.log(`📱 设备断开: ${clientInfo.id}`);
-                win?.webContents.send('mqtt-client-disconnected', clientInfo);
-            });
-
-            mqttServer.on('messagePublished', (message) => {
-                // 只转发来自客户端的消息，不转发服务器自己发布的消息
-                if (message.client) {
-                    win?.webContents.send('mqtt-message-published', message);
-                }
-                if (message.client) {
-                    win?.webContents.send('device-config-message', message);
-                }
-            });
-
-        } else {
-            console.error('❌ MQTT服务器启动失败:', mqttResult.error);
-        }
-    } catch (error) {
-        console.error('❌ 创建MQTT服务器时出错:', error);
-    }
+    // 启动所有服务
+    await startAllServices()
 
     // 注册快捷键
     globalShortcut.register('CommandOrControl+Shift+I', () => {
         win?.webContents.openDevTools()
     })
+
+    globalShortcut.register('F5', () => {
+        win?.reload()
+    })
+
+    console.log('✅ 应用程序启动完成')
 })
 
-// 应用事件监听器
+// 窗口全部关闭
 app.on('window-all-closed', () => {
-    fileServer.stop();
-    if (mqttServer) {
-        mqttServer.stop();
-    }
     if (process.platform !== 'darwin') {
-        app.quit();
+        app.quit()
     }
 })
 
-app.on('activate', () => {
-    // 在 macOS 上，当点击 dock 图标且没有其他窗口打开时，
-    // 通常在应用程序中重新创建一个窗口
+// 应用激活
+app.on('activate', async () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-        createWindow();
+        createWindow()
+        await startAllServices()
     }
 })
 
-app.on('before-quit', () => {
-    fileServer.stop();
-    if (mqttServer) {
-        mqttServer.stop();
-    }
+// 应用退出前
+app.on('before-quit', async () => {
+    await stopAllServices()
 })
 
+// 第二个实例
 app.on('second-instance', () => {
     if (win) {
         if (win.isMinimized()) win.restore()
         win.focus()
     }
+})
+
+// 进程错误处理
+process.on('uncaughtException', (error) => {
+    console.error('未捕获的异常:', error)
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('未处理的Promise拒绝:', reason)
 })
