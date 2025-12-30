@@ -131,15 +131,8 @@ const loadDeviceConfig = async () => {
 
     for (const [index, module] of modules.entries()) {
       const message = JSON.stringify({type: 'get_config', flag: module})
-
-      const success = window.electronAPI.mqttPublish({
-        topic,
-        message,
-        options: { qos: 1 }
-      })
-
+      const success = window.electronAPI.mqttPublish(topic,message, { qos: 1 })
       console.log(success ? `✓ 发送${module}配置读取命令 (${index+1}/${modules.length})` : `✗ ${module}配置读取命令发送失败`)
-
       // 延迟200ms（最后一个模块不需要延迟）
       if (index < modules.length - 1) await delay(200)
     }
@@ -312,20 +305,11 @@ const saveConfig = async () => {
           data: allConfig.modbus || {}
         })
       },
-      // Scene 配置（如果有的话）
-      // {
-      //   topic,
-      //   message: JSON.stringify({
-      //     type: 'set_config',
-      //     flag: 'scene',
-      //     data: allConfig.scene || {}
-      //   })
-      // }
     ]
 
     // 依次发送每个配置，每条消息之间间隔500毫秒
     for (let msg of configMessages) {
-      const success = window.electronAPI.mqttPublish({ ...msg, options: { qos: 2 } })
+      const success = window.electronAPI.mqttPublish(msg.topic,msg.message, { qos: 2 })
       if (success) {
         console.log(`发送配置: -> ${msg.topic} ${msg.message}`)
       } else {

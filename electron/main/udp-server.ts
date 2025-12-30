@@ -1,7 +1,8 @@
 // udp-server.ts
 import dgram from 'dgram';
-import { EventEmitter } from 'events';
-import { BrowserWindow } from 'electron';
+import {EventEmitter} from 'events';
+import {BrowserWindow} from 'electron';
+import os from "os";
 
 export interface DeviceInfo {
     id: string;
@@ -21,6 +22,8 @@ export interface UDPServerOptions {
     configPort?: number;
     deviceTimeout?: number; // 毫秒
 }
+
+
 
 export class UDPServer extends EventEmitter {
     private devices = new Map<string, DeviceInfo>();
@@ -166,7 +169,7 @@ export class UDPServer extends EventEmitter {
 
             const connectCommand = {
                 type: 'connect-mqtt',
-                ip: this.getLocalIP()
+                ip:this.getLocalIP()
             };
 
             const message = Buffer.from(JSON.stringify(connectCommand));
@@ -405,8 +408,27 @@ export class UDPServer extends EventEmitter {
     }
 
     private getLocalIP(): string {
-        // 这里应该实现获取本机IP的逻辑
-        // 简单返回默认值，实际应该从网络接口获取
-        return '192.168.1.2';
+        // 获取本机所有网络地址
+        const addresses = this.getNetworkAddresses();
+
+        // 构建完整的下载 URL（使用第一个可用的局域网 IP）
+        return addresses[0] || 'localhost';
     }
+
+
+    private getNetworkAddresses(): string[] {
+        const networkInterfaces = os.networkInterfaces();
+        const addresses: string[] = [];
+
+        for (const interfaceName of Object.keys(networkInterfaces)) {
+            for (const netInterface of networkInterfaces[interfaceName]) {
+                if (netInterface.family === 'IPv4' && !netInterface.internal) {
+                    addresses.push(netInterface.address);
+                }
+            }
+        }
+
+        return addresses;
+    }
+
 }

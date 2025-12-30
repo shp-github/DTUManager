@@ -269,7 +269,6 @@ const quickCommands = ref([
   { name: '重启设备(MQTT)', topic: `/server/cmd/`, message: '{"type":"reboot"}' },
   { name: '重启设备(UDP)', topic: ``, message: '',action: 'reboot' },
   { name: '获取设备号', topic: `/server/cmd/`, message: '{"type":"get_client_id"}' },
-  { name: '设备信息', topic: `/server/cmd/`, message: '{"type":"get_info"}' },
   { name: '清空终端', topic: '', message: '', action: 'clear' },
   { name: '通知设备连接', topic: '', message: '', action: 'connect' }
 ])
@@ -429,12 +428,7 @@ const submitUpgrade = async () => {
         type: 'ota',
         downloadUrl: upgradeResult.downloadUrl
       });
-      window.electronAPI.mqttPublish({
-        topic: topic,
-        message: message,
-        options: { qos: 1 }
-      });
-
+      window.electronAPI.mqttPublish(topic,message,{ qos: 1 } );
     }
     //批量推送设备升级
     else{
@@ -457,15 +451,8 @@ const submitUpgrade = async () => {
 
           // 使用 MQTT 推送升级命令
           const topic = `/server/cmd/${device.id}`
-          const message = JSON.stringify({
-            type: 'ota',
-            downloadUrl: upgradeResult.downloadUrl
-          })
-          await window.electronAPI.mqttPublish({
-            topic,
-            message,
-            options: { qos: 1 }
-          })
+          const message = JSON.stringify({type: 'ota',downloadUrl: upgradeResult.downloadUrl})
+          await window.electronAPI.mqttPublish(topic, message,  { qos: 1 })
 
           ElMessage.success({
             message: `设备 ${device.id} 升级命令已发送`,
@@ -623,12 +610,7 @@ const sendTerminalMessage = async () => {
   }
 
   // 通过 MQTT 发布消息
-  const success = await window.electronAPI.mqttPublish({
-    topic: topic,
-    message: message,
-    options: { qos: 1 }
-  })
-
+  const success = await window.electronAPI.mqttPublish(topic,message,{ qos: 1 })
   if (success) {
     addTerminalLog('send', `发送到 ${topic}: ${message}`)
     terminalInput.value = ''
@@ -660,7 +642,7 @@ const executeQuickCommand = (cmd: any) => {
   }
 
   if (cmd.action === 'get_config') {
-    const modules = ['basic','interface', 'network', 'channels'];
+    const modules = ['basic', 'interface', 'network', 'channels', 'modbus']
     const delay = 200;
 
     modules.forEach((module, index) => {
@@ -670,12 +652,7 @@ const executeQuickCommand = (cmd: any) => {
           flag: module
         });
 
-        const success = window.electronAPI.mqttPublish({
-          topic: topic,
-          message: message,
-          options: { qos: 1 }
-        });
-
+        const success = window.electronAPI.mqttPublish(topic,message, { qos: 1 });
         if (success) {
           addTerminalLog('send', `快速命令: ${cmd.name} -> ${topic} ${message}`)
         }
@@ -688,11 +665,9 @@ const executeQuickCommand = (cmd: any) => {
 
   if (!currentDevice.value) return
 
-  const success  =  window.electronAPI.mqttPublish({
-    topic: topic,
-    message: cmd.message,
-    options: { qos: 1 }
-  });
+  console.log(`主题：${topic} 类型${typeof topic}`)
+
+  const success  =  window.electronAPI.mqttPublish(topic,cmd.message,{ qos: 1 });
 
   if (success) {
     addTerminalLog('send', `快速命令: ${cmd.name} -> ${topic} ${cmd.message}`)

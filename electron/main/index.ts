@@ -8,9 +8,9 @@ import fs from 'fs'
 
 // 导入服务模块
 import fileServer from './fileServer'
-import MQTTServer from './mqtt-server'
-import { UDPServer } from './udp-server'
 import { SimpleDHCPServer } from './simple-dhcp-server'
+import { UDPServer } from './udp-server'
+import MQTTServer from './mqtt-server'
 
 
 const require = createRequire(import.meta.url)
@@ -136,7 +136,7 @@ async function startAllServices() {
     console.log('🚀 正在启动所有服务...')
 
     //启动DHCP服务器
-    await startDHCPServer()
+    //await startDHCPServer()
 
     // 1. 启动文件服务器
     const filePort = await startFileServer(8080)
@@ -495,41 +495,16 @@ ipcMain.handle('device-reboot', async (_event, deviceIp) => {
 
 // MQTT相关
 ipcMain.handle('mqtt-publish', async (_event, params) => {
-    let topic, message, options
-
-    if (params && typeof params === 'object') {
-        topic = params.topic
-        message = params.message
-        options = params.options
-    }
-
-    if (!mqttServer) {
-        console.error('❌ MQTT服务器未运行')
-        return false
-    }
-
     try {
-        if (topic === null || topic === undefined) {
-            console.error('❌ Topic 为 null 或 undefined')
-            return false
-        }
+        let topic = params.topic
+        let message = params.message
+        let options = params.options
 
-        const safeTopic = String(topic).trim()
-        if (!safeTopic) {
-            console.error('❌ Topic 为空字符串')
-            return false
-        }
+        console.log(`topic是字符串吗${typeof topic}`)
+        console.log(`topic是字符串吗${topic}`)
+        console.log(`topic是字符串吗${JSON.stringify(topic)}`)
 
-        let safeMessage
-        if (typeof message === 'string') {
-            safeMessage = message
-        } else if (typeof message === 'object') {
-            safeMessage = JSON.stringify(message)
-        } else {
-            safeMessage = String(message)
-        }
-
-        return mqttServer.publish(safeTopic, safeMessage, options)
+        return mqttServer.publish(topic, message, options)
     } catch (error) {
         console.error('💥 MQTT发布异常:', error)
         return false
