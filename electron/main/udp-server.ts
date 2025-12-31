@@ -411,24 +411,53 @@ export class UDPServer extends EventEmitter {
         // 获取本机所有网络地址
         const addresses = this.getNetworkAddresses();
 
+        addresses.forEach((address) => {
+            console.log(`获取本机所有网络地址：address： ${address}`)
+        })
+
         // 构建完整的下载 URL（使用第一个可用的局域网 IP）
         return addresses[0] || 'localhost';
     }
 
 
     private getNetworkAddresses(): string[] {
-        const networkInterfaces = os.networkInterfaces();
-        const addresses: string[] = [];
+            const networkInterfaces = os.networkInterfaces();
+            const addresses: string[] = [];
 
-        for (const interfaceName of Object.keys(networkInterfaces)) {
-            for (const netInterface of networkInterfaces[interfaceName]) {
-                if (netInterface.family === 'IPv4' && !netInterface.internal) {
-                    addresses.push(netInterface.address);
+            // 定义要排除的虚拟接口名称模式
+            const virtualInterfacePatterns = [
+                'vEthernet',      // Hyper-V
+                'VirtualBox',     // VirtualBox
+                'VMware',         // VMware
+                'Teredo',         // Teredo隧道
+                'Loopback',       // 环回接口
+                'Bluetooth',      // 蓝牙网络
+                'isatap',         // ISATAP隧道
+                'awdl',           // Apple无线直连（macOS）
+                'utun',           // UTUN隧道（macOS）
+                'ppp',            // PPP接口
+            ];
+
+            for (const interfaceName of Object.keys(networkInterfaces)) {
+                console.log(`interfaceName : ${interfaceName}`)
+
+                // 检查接口名称是否包含虚拟接口关键词
+                const isVirtualInterface = virtualInterfacePatterns.some(pattern =>
+                    interfaceName.toLowerCase().includes(pattern.toLowerCase())
+                );
+
+                if (isVirtualInterface) {
+                    continue; // 跳过虚拟接口
+                }
+
+                for (const netInterface of networkInterfaces[interfaceName]) {
+                    if (netInterface.family === 'IPv4' && !netInterface.internal) {
+                        addresses.push(netInterface.address);
+                    }
                 }
             }
-        }
 
-        return addresses;
+            return addresses;
     }
 
 }

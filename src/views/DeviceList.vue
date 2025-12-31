@@ -1,6 +1,16 @@
 <template>
   <div class="dtu-list-container">
-    <h2 class="title">DTU 列表 </h2>
+
+    <span style="
+        display: inline-block;
+        margin-bottom: 10px;
+        font-family: 'Microsoft YaHei', 'SimHei', '黑体', Arial, sans-serif;
+        font-size: 16px;
+        color: #ff0000;
+        font-weight: bold;
+    ">
+      注意：没有dhcp服务或者路由器的，需要手动设置ip为192.168.3.X
+    </span>
 
     <!-- 搜索 -->
     <div class="device-search">

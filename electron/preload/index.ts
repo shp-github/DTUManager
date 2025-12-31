@@ -66,6 +66,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.removeAllListeners('mqtt-message-published');
     },
 
+    // DHCP相关API
+    getNetworkInterfaces: () => ipcRenderer.invoke('get-network-interfaces'),
+    getDHCPStatus: () => ipcRenderer.invoke('get-dhcp-status'),
+    startDHCPServer: (config: any) => ipcRenderer.invoke('start-dhcp-server', config),
+    stopDHCPServer: () => ipcRenderer.invoke('stop-dhcp-server'),
+    reconfigureDHCP: (interfaceName: string, interfaceIP: string) =>
+        ipcRenderer.invoke('reconfigure-dhcp', interfaceName, interfaceIP),
+    getDHCPLeases: () => ipcRenderer.invoke('get-dhcp-leases'),
+    getDHCPConfig: () => ipcRenderer.invoke('get-dhcp-config'),
+
+
 })
 
 
