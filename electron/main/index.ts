@@ -1,15 +1,14 @@
-// main.ts - 完整版
-import { app, BrowserWindow, shell, ipcMain, Menu, globalShortcut } from 'electron'
-import { createRequire } from 'node:module'
-import { fileURLToPath } from 'node:url'
+import {app, BrowserWindow, globalShortcut, ipcMain, Menu, shell} from 'electron'
+import {createRequire} from 'node:module'
+import {fileURLToPath} from 'node:url'
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
 
 // 导入服务模块
 import fileServer from './fileServer'
-import SimpleDHCPServer, { DHCPServerConfig } from './simple-dhcp-server';
-import { UDPServer } from './udp-server'
+import SimpleDHCPServer, {DHCPServerConfig} from './simple-dhcp-server';
+import {UDPServer} from './udp-server'
 import MQTTServer from './mqtt-server'
 
 
@@ -144,9 +143,6 @@ async function startAllServices() {
     // 设置IPC通信
     await setupDHCPIPC();
 
-    //启动DHCP服务器
-    await startDHCPServer()
-
     // 1. 启动文件服务器
     const filePort = await startFileServer(8080)
     if (!filePort) {
@@ -162,57 +158,90 @@ async function startAllServices() {
     console.log('✅ 所有服务已启动完成')
 }
 
-// 启动DHCP服务器（带网卡配置）
-async function startDHCPServer(config?: DHCPServerConfig): Promise<boolean> {
+
+
+// ----------------- 启动DHCP服务 -----------------
+
+// 启动DHCP服务器的函数
+async function startDHCPServer(config: DHCPServerConfig): Promise<boolean> {
+    console.log('🔄 正在启动DHCP服务器...');
     try {
-        if (dhcpServer) {
-            console.log('🔄 DHCP服务器已在运行，先停止');
+        // 如果已经有服务器在运行，先停止
+        if (dhcpServer?.getStatus().running) {
+            console.log('ℹ️ 停止现有DHCP服务器');
             dhcpServer.stop();
-            dhcpServer = null;
         }
-
-        dhcpServer = new SimpleDHCPServer(config)
-
-        const started = await dhcpServer.start()
-        if (started) {
-            console.log('✅ DHCP服务器已启动')
-
-            // 监听DHCP事件
-            dhcpServer.on('device-registered', ({ mac, ip }) => {
-                console.log(`📱 DHCP设备注册: ${mac} -> ${ip}`)
-                win?.webContents.send('dhcp-device-registered', { mac, ip })
-            })
-
-            dhcpServer.on('lease-expired', ({ mac, ip }) => {
-                console.log(`🗑️  DHCP租约过期: ${mac} (${ip})`)
-                win?.webContents.send('dhcp-lease-expired', { mac, ip })
-            })
-
-            dhcpServer.on('started', () => {
-                console.log('🎉 DHCP服务器已完全启动')
-                win?.webContents.send('dhcp-server-started')
-            })
-
-            dhcpServer.on('stopped', () => {
-                console.log('🛑 DHCP服务器已停止')
-                win?.webContents.send('dhcp-server-stopped')
-            })
-
-            // 发送服务器状态到渲染进程
-            setTimeout(() => {
-                win?.webContents.send('dhcp-server-status', dhcpServer!.getStatus())
-            }, 500)
-
-            return true
-        } else {
-            console.warn('⚠️ DHCP服务器启动失败，设备可能需要手动配置IP')
-            return false
-        }
+        // 创建新的DHCP服务器实例
+        dhcpServer = new SimpleDHCPServer(config);
+        // 设置事件监听器，转发给渲染进程
+        setupDHCPEventListeners(dhcpServer);
+        dhcpServer.start();
+        return true;
     } catch (error) {
-        console.error('❌ 启动DHCP服务器时异常:', error)
-        return false
+        console.error('❌ 启动DHCP服务器异常:', error);
+        throw error;
     }
 }
+
+
+// 设置DHCP事件监听器
+function setupDHCPEventListeners(server: SimpleDHCPServer) {
+    if (!server) return;
+
+    // 移除之前的监听器（如果有）
+    server.removeAllListeners('started');
+    server.removeAllListeners('stopped');
+    server.removeAllListeners('status-changed');
+    server.removeAllListeners('ip-assigned');
+    server.removeAllListeners('device-registered');
+    server.removeAllListeners('lease-updated');
+    server.removeAllListeners('error');
+
+    // 监听服务器启动事件
+    server.on('started', (status: any) => {
+        console.log('🎉 DHCP服务器已启动');
+        win?.webContents.send('dhcp-server-started', status);
+    });
+
+    // 监听服务器停止事件
+    server.on('stopped', () => {
+        console.log('🛑 DHCP服务器已停止');
+        win?.webContents.send('dhcp-server-stopped');
+    });
+
+    // 监听状态变化
+    server.on('status-changed', (status: any) => {
+        console.log(`监听状态变化 ${JSON.stringify(status)}`)
+        console.log(`监听状态变化 ${typeof status}`)
+        win?.webContents.send('dhcp-server-status', status);
+    });
+
+    // 监听IP分配事件
+    server.on('ip-assigned', (data: any) => {
+        console.log(`📡 IP分配: ${data.mac} -> ${data.ip}`);
+        win?.webContents.send('dhcp-device-registered', data);
+    });
+
+    // 监听设备注册事件
+    server.on('device-registered', (data: any) => {
+        win?.webContents.send('dhcp-device-registered', data);
+    });
+
+    // 监听租约更新事件
+    server.on('lease-updated', (data: any) => {
+        win?.webContents.send('dhcp-lease-updated', data);
+    });
+
+    // 监听错误事件
+    server.on('error', (error: Error) => {
+        console.error('❌ DHCP服务器错误:', error);
+        win?.webContents.send('dhcp-error', {
+            message: error.message,
+            stack: error.stack
+        });
+    });
+}
+
 
 // 设置IPC通信
 let isIPCSetup = false;
@@ -225,103 +254,181 @@ async function setupDHCPIPC() {
 
     console.log('🔧 正在设置DHCP IPC通信...');
 
-    // 移除可能已存在的处理器
-    const existingHandlers = [
-        'get-network-interfaces',
-        'get-dhcp-status',
-        'start-dhcp-server',
-        'stop-dhcp-server',
-        'reconfigure-dhcp',
-        'get-dhcp-leases',
-        'get-dhcp-config'
-    ];
-
-    existingHandlers.forEach(handler => {
-        if (ipcMain.eventNames().includes(handler)) {
-            ipcMain.removeHandler(handler);
-            console.log(`🔄 移除已存在的处理器: ${handler}`);
-        }
-    });
-
-    // 获取所有可用网卡
-    ipcMain.handle('get-network-interfaces', () => {
-        console.log('📡 IPC: 获取网络接口');
+    // 获取网络接口列表
+    ipcMain.handle('get-network-interfaces', async () => {
         try {
-            const interfaces = SimpleDHCPServer.getAvailableInterfaces();
-            console.log(`✅ 找到 ${interfaces.length} 个网络接口`);
-            return interfaces;
+            return SimpleDHCPServer.getAvailableInterfaces();
         } catch (error) {
             console.error('❌ 获取网络接口失败:', error);
             return [];
         }
     });
 
-    // 获取DHCP服务器状态
-    ipcMain.handle('get-dhcp-status', () => {
-        console.log('📊 IPC: 获取DHCP状态');
-        const status = dhcpServer ? dhcpServer.getStatus() : null;
-        return status;
+
+    // 获取DHCP状态
+    ipcMain.handle('get-dhcp-status', async () => {
+        try {
+            return dhcpServer?.getStatus() || null;
+        } catch (error) {
+            console.error('❌ 获取DHCP状态失败:', error);
+            return null;
+        }
     });
+
 
     // 启动DHCP服务器
     ipcMain.handle('start-dhcp-server', async (event, config: DHCPServerConfig) => {
         console.log('🚀 IPC: 启动DHCP服务器', config);
+
         try {
+            // 验证配置
+            if (!config.interfaceIP || !config.subnet) {
+                return {
+                    success: false,
+                    status: null,
+                    message: '缺少必要的配置参数'
+                };
+            }
+
             const success = await startDHCPServer(config);
+
+            // 确保总是返回响应
             return {
                 success,
-                status: dhcpServer?.getStatus(),
+                status: dhcpServer?.getStatus() || null,
                 message: success ? 'DHCP服务器启动成功' : 'DHCP服务器启动失败'
             };
         } catch (error) {
             console.error('❌ IPC: 启动DHCP服务器异常:', error);
+
+            // 确保异常情况下也返回响应
             return {
                 success: false,
-                status: null,
+                status: dhcpServer?.getStatus() || null,
                 message: error instanceof Error ? error.message : '未知错误'
             };
         }
     });
 
+
     // 停止DHCP服务器
-    ipcMain.handle('stop-dhcp-server', () => {
-        console.log('🛑 IPC: 停止DHCP服务器');
-        if (dhcpServer) {
-            dhcpServer.stop();
-            dhcpServer = null;
-            return { success: true, message: 'DHCP服务器已停止' };
+    ipcMain.handle('stop-dhcp-server', async () => {
+        try {
+            if (dhcpServer?.getStatus().running) {
+                dhcpServer.stop();
+                console.log('✅ DHCP服务器已停止');
+                return {
+                    success: true,
+                    message: 'DHCP服务器已停止'
+                };
+            } else {
+                return {
+                    success: false,
+                    message: 'DHCP服务器未运行'
+                };
+            }
+        } catch (error) {
+            console.error('❌ 停止DHCP服务器失败:', error);
+            return {
+                success: false,
+                message: error instanceof Error ? error.message : '未知错误'
+            };
         }
-        return { success: false, message: 'DHCP服务器未运行' };
     });
 
     // 重新配置DHCP服务器
-    ipcMain.handle('reconfigure-dhcp', async (event, interfaceName: string, interfaceIP: string) => {
-        console.log('⚙️ IPC: 重新配置DHCP', { interfaceName, interfaceIP });
-        if (dhcpServer) {
-            dhcpServer.reconfigure({ interfaceName, interfaceIP });
-            return { success: true, message: 'DHCP服务器已重新配置' };
+    ipcMain.handle('reconfigure-dhcp', async (event, config: Partial<DHCPServerConfig>) => {
+        try {
+            if (!dhcpServer) {
+                return {
+                    success: false,
+                    message: 'DHCP服务器未初始化'
+                };
+            }
+
+            const success = await dhcpServer.reconfigure(config);
+
+            return {
+                success,
+                status: dhcpServer.getStatus(),
+                message: success ? 'DHCP服务器重新配置成功' : 'DHCP服务器重新配置失败'
+            };
+        } catch (error) {
+            console.error('❌ 重新配置DHCP服务器失败:', error);
+            return {
+                success: false,
+                status: dhcpServer?.getStatus() || null,
+                message: error instanceof Error ? error.message : '未知错误'
+            };
         }
-        return { success: false, message: 'DHCP服务器未运行' };
     });
 
-    // 获取当前租约
-    ipcMain.handle('get-dhcp-leases', () => {
-        console.log('📋 IPC: 获取DHCP租约');
-        return dhcpServer ? dhcpServer.getLeases() : [];
+    // 获取DHCP租约
+    ipcMain.handle('get-dhcp-leases', async () => {
+        try {
+            if (dhcpServer) {
+                return dhcpServer.getLeases();
+            }
+            return [];
+        } catch (error) {
+            console.error('❌ 获取DHCP租约失败:', error);
+            return [];
+        }
     });
 
-    // 获取DHCP服务器配置
-    ipcMain.handle('get-dhcp-config', () => {
-        console.log('🔧 IPC: 获取DHCP配置');
-        if (!dhcpServer) return null;
-        const status = dhcpServer.getStatus();
-        return {
-            interfaceName: status.interface,
-            interfaceIP: status.ip,
-            gateway: status.gateway,
-            subnet: status.subnet,
-            netmask: status.netmask
-        };
+    // 获取DHCP配置
+    ipcMain.handle('get-dhcp-config', async () => {
+        try {
+            if (dhcpServer) {
+                return dhcpServer.getConfigInfo();
+            }
+            return null;
+        } catch (error) {
+            console.error('❌ 获取DHCP配置失败:', error);
+            return null;
+        }
+    });
+
+    // 释放租约
+    ipcMain.handle('release-lease', async (event, mac: string) => {
+        try {
+            if (dhcpServer) {
+                const success = dhcpServer.releaseIP(mac);
+                return success;
+            }
+            return false;
+        } catch (error) {
+            console.error('❌ 释放租约失败:', error);
+            return false;
+        }
+    });
+
+    // 续租
+    ipcMain.handle('renew-lease', async (event, mac: string, extendTime?: number) => {
+        try {
+            if (dhcpServer) {
+                const success = dhcpServer.renewLease(mac, extendTime);
+                return success;
+            }
+            return false;
+        } catch (error) {
+            console.error('❌ 续租失败:', error);
+            return false;
+        }
+    });
+
+    // 手动分配IP
+    ipcMain.handle('assign-ip', async (event, mac: string, ip: string, hostname?: string) => {
+        try {
+            if (dhcpServer) {
+                const success = dhcpServer.assignIP(mac, ip, hostname);
+                return success;
+            }
+            return false;
+        } catch (error) {
+            console.error('❌ 手动分配IP失败:', error);
+            return false;
+        }
     });
 
     // 调试接口
@@ -329,22 +436,7 @@ async function setupDHCPIPC() {
         return { success: true, message: 'pong', timestamp: Date.now() };
     });
 
-    // 验证所有处理器
-    const handlers = [
-        'get-network-interfaces',
-        'get-dhcp-status',
-        'start-dhcp-server',
-        'stop-dhcp-server',
-        'reconfigure-dhcp',
-        'get-dhcp-leases',
-        'get-dhcp-config',
-        'ping'
-    ];
-
     console.log('✅ DHCP IPC通信已设置，处理器列表:');
-    handlers.forEach(handler => {
-        console.log(`   ✓ ${handler}`);
-    });
 
     isIPCSetup = true;
 }
@@ -358,6 +450,8 @@ async function stopDHCPServer(): Promise<void> {
         console.log('✅ DHCP服务器已停止')
     }
 }
+
+
 
 // ----------------- 启动文件服务器 -----------------
 async function startFileServer(defaultPort: number): Promise<number | null> {

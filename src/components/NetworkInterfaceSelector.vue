@@ -148,7 +148,7 @@
                   <div class="interface-header">
                     <h4>{{ iface.name }}</h4>
                     <div class="interface-badges">
-                      <span v-if="iface.internal" class="badge internal">内部</span>
+                      <span v-if="iface.internal || iface.name.startsWith('vEthernet')" class="badge internal">内部</span>
                       <span v-if="iface.ip.startsWith('127.')" class="badge loopback">回环</span>
                       <span v-if="iface.ip.startsWith('169.254.')" class="badge link-local">链路本地</span>
                       <span v-if="isRecommended(iface)" class="badge recommended">推荐</span>
@@ -167,7 +167,7 @@
                     <div class="detail-item">
                       <span class="label">类型:</span>
                       <span class="value">
-                        <span v-if="iface.internal" class="status internal">内部接口</span>
+                        <span v-if="iface.internal || iface.name.startsWith('vEthernet') " class="status internal">内部接口</span>
                         <span v-else class="status external">外部接口</span>
                       </span>
                     </div>
@@ -400,7 +400,8 @@ const config = ref<DHCPConfig>({
   ipPoolStart: '192.168.100.100',
   ipPoolEnd: '192.168.100.200',
   leaseTime: 24,
-  dns: '8.8.8.8,8.8.4.4'
+  dns: '8.8.8.8,8.8.4.4',
+  gateway: '192.168.100.1',
 })
 
 const editConfig = ref<Partial<DHCPConfig>>({})
@@ -453,7 +454,8 @@ const retryConnection = async () => {
 const isRecommended = (iface: NetworkInterface) => {
   return !iface.internal &&
       !iface.ip.startsWith('127.') &&
-      !iface.ip.startsWith('169.254.')
+      !iface.ip.startsWith('169.254.') &&
+      !iface.name.startsWith('vEthernet')
 }
 
 // 格式化时间差
@@ -605,16 +607,10 @@ const confirmSelection = async () => {
     }
 
     console.log('正在启动DHCP服务器:', fullConfig)
-    const result = await window.electronAPI.startDHCPServer(fullConfig)
-
-    if (result.success) {
-      dhcpStatus.value = result.status
-      showSelector.value = false
-      console.log('DHCP服务器启动成功')
-    } else {
-      console.error('DHCP服务器启动失败:', result)
-      alert('DHCP服务器启动失败，请检查网络配置')
-    }
+    const result =  window.electronAPI.startDHCPServer(fullConfig)
+    dhcpStatus.value = result.status
+    showSelector.value = false
+    console.log('DHCP服务器启动成功')
   } catch (error) {
     console.error('启动DHCP失败:', error)
     alert(`启动DHCP失败: ${error instanceof Error ? error.message : '未知错误'}`)
@@ -682,7 +678,8 @@ const setupListeners = () => {
   try {
     // DHCP服务器状态更新
     window.electronAPI.on('dhcp-server-status', (status: DHCPStatus) => {
-      console.log('收到DHCP状态更新:', status)
+      console.log(`收到DHCP状态更新 ${JSON.stringify(status)}`)
+      console.log(`收到DHCP状态更新 ${typeof status}`)
       dhcpStatus.value = status
     })
 

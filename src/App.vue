@@ -22,7 +22,7 @@ import SidebarMenu from './components/SidebarMenu.vue'
 import NetworkInterfaceSelector from './components/NetworkInterfaceSelector.vue'
 
 // 控制DHCP选择器显示
-const showDhcpSelector = ref(true) // 默认显示
+const showDhcpSelector = ref(false)
 const dhcpSelector = ref()
 const showControlBtn = ref(process.env.NODE_ENV === 'development') // 只在开发环境显示控制按钮
 

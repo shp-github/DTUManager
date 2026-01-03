@@ -43,6 +43,7 @@
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
     "aedes": "^0.51.3",
+    "dhcp": "^0.2.20",
     "element-plus": "^2.11.7",
     "express": "^5.1.0",
     "mqtt": "^5.14.1",

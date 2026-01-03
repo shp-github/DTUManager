@@ -9,7 +9,7 @@
         color: #ff0000;
         font-weight: bold;
     ">
-      注意：没有dhcp服务或者路由器的，需要手动设置ip为192.168.3.X
+      注意：没有dhcp服务或者路由器的，需要手动启用dhcp服务
     </span>
 
     <!-- 搜索 -->
@@ -49,8 +49,8 @@
     >
       <el-table-column type="selection" width="55" />
       <el-table-column prop="name" label="设备名称" width="160" resizable />
-      <el-table-column prop="id" label="设备号" width="180" resizable />
-      <el-table-column prop="ip" label="IP 地址" width="120" resizable />
+      <el-table-column prop="id" label="设备号" width="140" resizable />
+      <el-table-column prop="ip" label="IP 地址" width="140" resizable />
       <el-table-column prop="firmware" label="固件版本" width="100" resizable />
       <el-table-column prop="networkType" label="网络类型" width="90" resizable />
       <el-table-column prop="RSSI" label="信号" width="80" resizable />
