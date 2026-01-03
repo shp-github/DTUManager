@@ -38,9 +38,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     mqttGetStatus: () =>
         ipcRenderer.invoke('mqtt-get-status'),
 
-    mqttGetClients: () =>
-        ipcRenderer.invoke('mqtt-get-clients'),
-
     mqttSendConfig: (deviceId, config) =>
         ipcRenderer.invoke('mqtt-send-config', { deviceId, config }),
 

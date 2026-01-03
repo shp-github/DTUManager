@@ -1,8 +1,8 @@
 {
   "name": "electron-vue-vite",
-  "version": "28.1.0",
+  "version": "1.0.6",
   "main": "dist-electron/main/index.js",
-  "description": "Really simple Electron + Vue + Vite boilerplate.",
+  "description": "",
   "author": "",
   "license": "MIT",
   "private": true,
@@ -51,7 +51,7 @@
     "ws": "^8.18.3"
   },
   "build": {
-    "appId": "com.yourcompany.dtu",
+    "appId": "com.shp.dtu",
     "productName": "DTU Manager",
     "directories": {
       "output": "release",
@@ -68,7 +68,7 @@
         "nsis",
         "zip"
       ],
-      "icon": "public/favicon.ico",
+      "icon": "public/1.png",
       "certificateFile": "certs/cert.pfx",
       "certificatePassword": "2948299576"
     },
@@ -82,14 +82,14 @@
       "target": [
         "dmg"
       ],
-      "icon": "public/favicon.icns"
+      "icon": "public/1.png"
     },
     "linux": {
       "target": [
         "AppImage",
         "deb"
       ],
-      "icon": "public"
+      "icon": "public/1.png"
     }
   }
 }

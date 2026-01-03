@@ -86,7 +86,6 @@ declare global {
 
             deviceConfigMessage(handleMqttMessage: (event: any, data: any) => void): void;
 
-            mqttGetClients(): MQTTClientInfo[];
 
             mqttPublish(topic: any, message, options: { qos: number }): Boolean;
 

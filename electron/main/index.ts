@@ -52,7 +52,7 @@ function createWindow() {
         width: 1200,
         height: 800,
         title: 'DTU 上位机配置',
-        icon: process.env.VITE_PUBLIC ? path.join(process.env.VITE_PUBLIC, 'favicon.ico') : undefined,
+        icon: 'public/1.png',
         webPreferences: {
             preload,
             nodeIntegration: false,

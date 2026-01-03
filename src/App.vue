@@ -24,7 +24,8 @@ import NetworkInterfaceSelector from './components/NetworkInterfaceSelector.vue'
 // 控制DHCP选择器显示
 const showDhcpSelector = ref(false)
 const dhcpSelector = ref()
-const showControlBtn = ref(process.env.NODE_ENV === 'development') // 只在开发环境显示控制按钮
+//const showControlBtn = ref(process.env.NODE_ENV === 'development') // 只在开发环境显示控制按钮
+const showControlBtn = ref(true) // 只在开发环境显示控制按钮
 
 // 切换显示/隐藏
 const toggleDhcpSelector = () => {
