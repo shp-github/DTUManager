@@ -22,6 +22,34 @@
         <el-form-item label="设备名称">
           <el-input v-model="modelValue.name" />
         </el-form-item>
+        <div class="card-title">网络配置</div>
+        <el-form label-width="120px">
+          <!-- 静态IP -->
+          <el-form-item label="静态IP">
+            <el-switch
+                v-model="modelValue.isStatic"
+                :active-value="1"
+                :inactive-value="0"
+                active-text="开启"
+                inactive-text="关闭"
+                @change="handleStaticIPChange"
+            />
+          </el-form-item>
+         <div v-if="modelValue.isStatic">
+           <el-form-item label="IP地址">
+             <el-input v-model="modelValue.ip" />
+           </el-form-item>
+           <el-form-item label="子网掩码">
+             <el-input v-model="modelValue.subnet" />
+           </el-form-item>
+           <el-form-item label="网关">
+             <el-input v-model="modelValue.gateway" />
+           </el-form-item>
+           <el-form-item label="DNS服务器">
+             <el-input v-model="modelValue.dns" />
+           </el-form-item>
+         </div>
+        </el-form>
       </el-form>
     </el-card>
   </div>
@@ -47,6 +75,33 @@ interface Device {
   runtime: number
   firmware: string
   heart_interval: number
+}
+
+
+// 处理静态IP开关变化
+const handleStaticIPChange = (isStatic: boolean) => {
+  if (isStatic) {
+    // 开启静态IP时，设置默认值
+    if (!props.modelValue.ip || props.modelValue.ip === '0.0.0.0') {
+      props.modelValue.ip = '192.168.3.24'
+    }
+    if (!props.modelValue.gateway || props.modelValue.gateway === '0.0.0.0') {
+      props.modelValue.gateway = '192.168.3.1'
+    }
+    if (!props.modelValue.subnet || props.modelValue.subnet === '0.0.0.0') {
+      props.modelValue.subnet = '255.255.255.0'
+    }
+    // 设置DNS默认值
+    if (!props.modelValue.dns || props.modelValue.dns === '0.0.0.0') {
+      props.modelValue.dns = '8.8.8.8'
+    }
+  } else {
+    // 关闭静态IP（DHCP模式）时，清空IP配置
+    props.modelValue.ip = '0.0.0.0'
+    props.modelValue.gateway = '0.0.0.0'
+    props.modelValue.subnet = '255.255.255.0'
+    props.modelValue.dns = '0.0.0.0'
+  }
 }
 
 

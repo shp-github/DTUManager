@@ -47,7 +47,7 @@
       </div>
 
       <el-table :data="modbusConfig.commands"
-                row-key="id"
+                row-key="$index"
                 style="width:100%;"
                 :expand-row-keys="expandedRows">
 
@@ -56,37 +56,36 @@
           <template #default="{ row }">
             <div class="expand-wrapper" @click.stop>
               <div class="mapping-header">
-                <h4>寄存器映射</h4>
                 <el-button size="small" type="primary" @click="addMapping(row)">添加映射</el-button>
               </div>
 
               <el-table :data="row.arr" style="margin-top:10px;">
-                <el-table-column label="键值">
-                  <template #default="{ row: m }">
-                    <el-input v-model="m.key" @click.stop />
-                  </template>
-                </el-table-column>
-
                 <el-table-column label="寄存器地址">
                   <template #default="{ row: m }">
-                    <el-input-number v-model="m.address" :min="0" @click.stop />
+                    <el-input-number v-model="m.a" :min="0" @click.stop />
                   </template>
                 </el-table-column>
 
                 <el-table-column label="长度(字节)">
                   <template #default="{ row: m }">
-                    <el-input-number v-model="m.length" :min="1" :max="8" @click.stop />
+                    <el-input-number v-model="m.l" :min="1" :max="8" @click.stop />
                   </template>
                 </el-table-column>
 
                 <el-table-column label="顺序">
                   <template #default="{ row: m }">
-                    <el-select v-model="m.order" @click.stop>
+                    <el-select v-model="m.o" @click.stop>
                       <el-option label="ABCD" value="ABCD"/>
                       <el-option label="CDAB" value="CDAB"/>
                       <el-option label="BADC" value="BADC"/>
                       <el-option label="DCBA" value="DCBA"/>
                     </el-select>
+                  </template>
+                </el-table-column>
+
+                <el-table-column label="键值">
+                  <template #default="{ row: m }">
+                    <el-input v-model="m.k" @click.stop />
                   </template>
                 </el-table-column>
 
@@ -107,7 +106,7 @@
         <el-table-column label="从机地址" width="160">
           <template #default="{ row }">
             <el-input-number
-                v-model.number="row.addr"
+                v-model.number="row.a"
                 :min="1"
                 :max="247"
                 @input.stop
@@ -116,7 +115,7 @@
         </el-table-column>
         <el-table-column label="功能码" width="120">
           <template #default="{ row }">
-            <el-select v-model="row.fc" @click.stop>
+            <el-select v-model="row.f" @click.stop>
               <el-option label="01" value="01"/>
               <el-option label="02" value="02"/>
               <el-option label="03" value="03"/>
@@ -126,12 +125,12 @@
         </el-table-column>
         <el-table-column label="起始寄存器" width="140">
           <template #default="{ row }">
-            <el-input v-model="row.reg" type="number" min="0" @input.stop />
+            <el-input v-model="row.r" type="number" min="0" @input.stop />
           </template>
         </el-table-column>
         <el-table-column label="寄存器数量" width="140">
           <template #default="{ row }">
-            <el-input v-model="row.size" type="number" min="1" @input.stop />
+            <el-input v-model="row.s" type="number" min="1" @input.stop />
           </template>
         </el-table-column>
         <el-table-column label="操作" width="180">
@@ -148,7 +147,6 @@
 
 <script setup lang="ts">
 import { reactive, ref, computed, watch } from 'vue'
-import { nanoid } from 'nanoid'
 
 const setModbusConfig = () =>{
   //启用设置默认值
@@ -166,7 +164,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits(['update:modelValue'])
 
-const expandedRows = ref<string[]>([])
+const expandedRows = ref<number[]>([])
 
 // 默认值工厂
 const defaultConfig = () => ({
@@ -205,10 +203,10 @@ function addCommand() {
     modbusConfig.value.commands = []
   }
   modbusConfig.value.commands.push({
-    addr: 1,
-    fc: '03',
-    reg: 0,
-    size: 1,
+    a: 1,
+    f: '03',
+    r: 0,
+    s: 1,
     arr: []
   })
 }
@@ -220,22 +218,24 @@ function removeCommand(i: number) {
 
 // 复制命令
 function copyCommand(i: number) {
-  const cmd = modbusConfig.value.commands[i]
-  modbusConfig.value.commands.splice(i + 1, 0, {
-    ...cmd,
-    id: nanoid(),
-    arr: cmd.arr.map(m => ({ ...m }))
-  })
+  // 1. 获取原始命令
+  const originalCmd = modbusConfig.value.commands[i];
+  // 2. 创建一个深拷贝，避免直接修改原始对象
+  const newCmd = JSON.parse(JSON.stringify(originalCmd));
+  // 3. 在新对象上修改属性
+  newCmd.a = originalCmd.a + 1; // 更合理的累加方式，是原始值的+1，而不是索引+2
+  // 4. 将新对象插入数组
+  modbusConfig.value.commands.splice(i + 1, 0, newCmd);
 }
 
 // 添加映射
 function addMapping(cmd: any) {
   console.log('添加映射：',JSON.stringify(cmd))
   cmd.arr.push({
-    key: 'a1',
-    address: 0,
-    length: 1,
-    order: 'ABCD'
+    a: 0,
+    k: '',
+    l: 1,
+    o: 'ABCD'
   })
 }
 

@@ -179,7 +179,7 @@ const handleMqttMessage = (event: any, data: any) => {
       case "basic":
         // 接口配置（串口）
         allConfig.basic = msg
-        //console.log("更新 basic 配置成功:", allConfig.basic)
+        console.log("更新 basic 配置成功:", allConfig.basic)
         break
 
       case "interface":

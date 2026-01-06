@@ -68,6 +68,9 @@ function createWindow() {
         win.loadFile(indexHtml)
     }
 
+    //打开开发者工具
+    win.webContents.openDevTools()
+
     win.maximize()
 
     // 处理外部链接
