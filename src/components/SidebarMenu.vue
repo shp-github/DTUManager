@@ -5,7 +5,10 @@
       <!-- 折叠按钮 -->
       <div class="collapse-btn" @click="toggleCollapse">
         <el-icon :size="20">
-          <component :is="isCollapsed ? 'Expand' : 'Fold'"></component>
+          <component :is="isCollapsed ? 'Expand' : 'Fold'">
+            <el-icon v-if="isCollapsed"><Expand  /></el-icon>
+            <el-icon v-if="!isCollapsed"><Fold  /></el-icon>
+          </component>
         </el-icon>
       </div>
 
@@ -32,6 +35,10 @@
           <el-icon><Document /></el-icon>
           <template #title>日志</template>
         </el-menu-item>
+        <el-menu-item index="/dhcp">
+          <el-icon><Setting  /></el-icon>
+          <template #title>DHCP分配</template>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 
@@ -45,7 +52,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Expand, Fold, Monitor, DataLine, Document } from '@element-plus/icons-vue'
+import { Expand, Fold, Monitor, DataLine, Document,Setting  } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -66,7 +73,6 @@ const asideWidth = computed(() => {
 const mainStyle = computed(() => {
   return {
     'height': 'calc(100vh - 20px)',
-    'margin-left': isCollapsed.value ? '64px' : '200px',
     'width': `calc(100% - ${asideWidth.value})`,
     'transition': 'margin-left 0.3s'
   }
