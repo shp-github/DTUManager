@@ -26,7 +26,9 @@
           <el-form-item label="输出数据源">
             <el-select v-model="modbusConfig.outputSource" multiple>
               <el-option  label="默认" :value="0" :key="0"/>
-              <el-option v-for="i in 3" :label="'自定义' + i" :value="i" :key="i"/>
+              <el-option  label="通道1" :value="1" :key="1"/>
+              <el-option  label="通道2" :value="2" :key="2"/>
+              <el-option  label="通道3" :value="3" :key="3"/>
             </el-select>
           </el-form-item>
 

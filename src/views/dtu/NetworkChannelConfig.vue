@@ -35,14 +35,9 @@
         <!-- 数据源 -->
         <el-form-item label="数据源">
           <el-select v-model="currentChannel.source" placeholder="选择数据源">
-            <el-option label="串口1" value="serial1" />
+            <el-option label="串口" value="serial1" />
             <!--<el-option label="串口2" value="serial2" />-->
-            <el-option
-                v-for="i in 3"
-                :key="'custom' + i"
-                :label="'自定义' + i"
-                :value="'custom' + i"
-            />
+            <el-option label="自定义" value="custom" />
             <el-option label="控制台" value="console" />
           </el-select>
         </el-form-item>
