@@ -1,7 +1,6 @@
 
 #### DTU程序
-https://gitee.com/shp-java/dtu-wt32
-
+https://gitee.com/shp-java/wt32-arduino-dtu
 
 # 🛠 配置软件项目介绍
 
