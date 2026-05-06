@@ -18,7 +18,7 @@
             <div class="arrow">→</div>
 
             <div class="step" @click="loadDeviceConfig">
-              读取
+              读取配置
             </div>
             <div class="arrow">→</div>
 
@@ -29,7 +29,7 @@
             <div class="arrow">→</div>
 
             <div class="step" @click="reboot">
-              重启生效
+              重启设备
             </div>
           </div>
 
@@ -109,8 +109,10 @@ const connectMqtt = async () => {
 
     console.log('通知设备连接mqtt:', device.value.ip)
     const config = await window.electronAPI.connectMqtt(device.value.ip)
-    //console.log('让设备连接mqtt:\n', JSON.stringify(config, null, 2))
+    console.log('让设备连接mqtt:\n', JSON.stringify(config, null, 2))
 
+    // 等待1秒
+    await new Promise(resolve => setTimeout(resolve, 1000))
     //读取设备配置
     loadDeviceConfig();
 
@@ -138,7 +140,7 @@ const loadDeviceConfig = async () => {
     }
 
     console.log('✅ 所有配置读取命令发送完成')
-    ElMessage.success('配置读取命令已发送')
+    ElMessage.success('读取配置中')
 
   } catch (err) {
     console.error('❌ 读取设备配置失败:', err)
@@ -232,16 +234,20 @@ onMounted(() => {
   //监听设备消息
   window.electronAPI.deviceConfigMessage(handleMqttMessage)
 
+  // 每秒更新运行时间
   runtimeTimer = window.setInterval(() => {
     if (device.value && device.value.runtime !== undefined) {
       device.value.runtime += 1
     }
   }, 1000)
 
+  // 监听菜单操作
   window.electronAPI.on('menu-action', (action: string) => {
     if (action === 'save') saveConfig()
   })
 
+  // 通知设备连接mqtt
+  connectMqtt();
 })
 
 onBeforeUnmount(() => {
@@ -307,7 +313,7 @@ const saveConfig = async () => {
       },
     ]
 
-    // 依次发送每个配置，每条消息之间间隔500毫秒
+    // 依次发送每个配置
     for (let msg of configMessages) {
       const success = window.electronAPI.mqttPublish(msg.topic,msg.message, { qos: 2 })
       if (success) {

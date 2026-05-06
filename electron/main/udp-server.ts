@@ -141,9 +141,9 @@ export class UDPServer extends EventEmitter {
                 fileSize: serverInfo.fileSize,
                 timestamp: Date.now(),
                 ip: localIp,
-                mqttPort: 1883,
+                mqttPort: 51883,
                 mqttUsername: "device",
-                mqttPassword: "123456"
+                mqttPassword: "123456",
             };
 
             const msg = Buffer.from(JSON.stringify(upgradeMessage));
@@ -169,6 +169,9 @@ export class UDPServer extends EventEmitter {
 
             const connectCommand = {
                 type: 'connect-mqtt',
+                mqttPort: 51883,
+                mqttUsername: "device",
+                mqttPassword: "123456",
                 ip:this.getLocalIP()
             };
 
@@ -377,6 +380,7 @@ export class UDPServer extends EventEmitter {
             const now = Date.now();
             let changed = false;
 
+            // @ts-ignore
             for (const [id, device] of this.devices.entries()) {
                 if (device.lastSeen && typeof device.lastSeen === 'number') {
                     if (now - device.lastSeen > this.deviceTimeout) {

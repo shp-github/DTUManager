@@ -1,5 +1,6 @@
 import {createRouter, createWebHashHistory, RouteLocationNormalized} from 'vue-router'
 import LogView from './views/LogView.vue'
+import DhcpView from './views/dhcpView.vue'
 import DtuConfig from './views/DtuConfig.vue'
 import ResourceMonitor from './views/ResourceMonitor.vue'
 import DeviceList from './views/DeviceList.vue'
@@ -24,6 +25,7 @@ const routes = [
     },
     { path: '/log', component: LogView },
     { path: '/resource', component: ResourceMonitor },
+    { path: '/dhcp', component: DhcpView },
 ]
 
 const router = createRouter({

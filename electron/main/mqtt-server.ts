@@ -27,7 +27,7 @@ class MQTTServer extends EventEmitter {
 
     constructor(options: MQTTServerOptions = {}) {
         super();
-        this.tcpPort = options.tcpPort || 1883;
+        this.tcpPort = options.tcpPort || 51883;
         this.initializeBroker();
     }
 

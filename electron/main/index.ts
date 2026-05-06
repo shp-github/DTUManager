@@ -96,6 +96,7 @@ function createWindow() {
 
 // ----------------- 创建应用菜单 -----------------
 function createApplicationMenu() {
+    // @ts-ignore
     const menuTemplate: Menu.MenuItemConstructorOptions[] = [
         {
             label: '服务器',
@@ -526,7 +527,7 @@ async function startUDPServer() {
 // ----------------- 启动MQTT服务 -----------------
 async function startMQTTServer() {
     try {
-        mqttServer = new MQTTServer({ tcpPort: 1883 })
+        mqttServer = new MQTTServer({ tcpPort: 51883 })
         const result = await mqttServer.start()
 
         if (result.success) {

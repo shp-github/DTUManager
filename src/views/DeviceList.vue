@@ -30,7 +30,7 @@
           :disabled="multipleSelection.length === 0"
           @click="batchUpgrade"
       >
-        批量升级
+        批量升级({{multipleSelection.length}})
       </el-button>
 
     </div>
@@ -108,7 +108,7 @@
 
       <div class="file-upload-section">
         <el-alert
-            title="请选择升级文件 (.bin, .hex, .json 等格式)"
+            title="请选择升级文件 (.bin)"
             type="info"
             :closable="false"
             style="margin-bottom: 15px;"
@@ -122,7 +122,7 @@
             :on-change="handleUpgradeFile"
             :file-list="fileList"
             :limit="1"
-            accept=".bin,.hex,.json,.zip,.rar,.7z"
+            accept=".bin"
         >
           <el-icon class="el-icon--upload"><upload-filled /></el-icon>
           <div class="el-upload__text">
@@ -130,7 +130,7 @@
           </div>
           <template #tip>
             <div class="el-upload__tip">
-              支持 bin、hex、json 等格式文件，且不超过 100MB
+              支持 bin格式文件，且不超过 2MB
             </div>
           </template>
         </el-upload>
@@ -337,6 +337,13 @@ const openUpgradeDialog = (device: any = null,batch:boolean ) => {
 
 // 处理文件选择
 const handleUpgradeFile = (file: any) => {
+  const maxSize = 2 * 1024 * 1024 // 2MB
+  if (file.size > maxSize) {
+    ElMessage.error('文件大小超过 2MB 限制，请选择更小的文件')
+    selectedFile.value = null
+    fileList.value = []
+    return false
+  }
   selectedFile.value = file.raw
   fileList.value = [file]
 }

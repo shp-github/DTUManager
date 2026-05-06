@@ -1,4 +1,6 @@
 // src/types/electron.d.ts
+import {ref} from "vue";
+
 export {}
 
 // 设备类型定义
@@ -37,6 +39,13 @@ interface ConfigOperationResult {
 declare global {
     interface Window {
         electronAPI: {
+
+            // DHCP相关
+            getNetworkInterfaces: () => Promise<ref<NetworkInterface[]>>
+            startDHCPServer: (T) => Promise<ref<NetworkInterface[]>>
+            getDHCPStatus: () => Promise<ref<DHCPStatus[]>>
+            stopDHCPServer: () => void
+
             // 设备发现和配置
             onDeviceDiscovered: (callback: (devices: DeviceInfo[]) => void) => void
             getDevices: () => Promise<DeviceInfo[]>
@@ -48,6 +57,7 @@ declare global {
             // 文件操作
             saveFile: (fileName: string, fileData: ArrayBuffer) => Promise<FileOperationResult>
             getFileList: () => Promise<FileListResult>
+
 
             // 设备升级
             sendUpgradeCommand: (
