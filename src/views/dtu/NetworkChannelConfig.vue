@@ -113,7 +113,7 @@ interface Device {
 
 interface Channel {
   enabled: boolean;
-  source: string;
+  source: "serial1";
   protocol: "tcp" | "mqtt";
   target: string;  // 改为 target 与后端一致
   port: number;
@@ -161,7 +161,7 @@ const deepClone = <T>(obj: T): T => {
 function defaultChannel(i: number): Channel {
   return {
     enabled: i === 0,
-    source: i === 0 ? "serial1" : "",
+    source: "serial1",
     protocol: i === 0 ? "mqtt" : "tcp",
     target: i === 0 && props.device ? "121.36.223.224" : "",
     port: i === 0 ? 1883 : 50001,
@@ -299,7 +299,7 @@ const handleEnableChange = (enabled: boolean) => {
   if (!enabled) {
     Object.assign(ch, {
       enabled: false,
-      source: "",
+      source: "serial1",
       protocol: "tcp",
       target: "",
       port: 0,
@@ -317,7 +317,7 @@ const handleEnableChange = (enabled: boolean) => {
     });
   } else {
     ch.enabled = true;
-    ch.target = "121.36.223.224";  // 改为 target
+    ch.target = "121.36.223.224";
     ch.heartbeatTime = 30;
     if (props.device) {
       ch.registerPackage = props.device.id

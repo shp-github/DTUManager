@@ -16,10 +16,23 @@
     <div class="device-search">
       <el-input
           v-model="searchText"
-          placeholder="输入设备号或IP搜索"
+          placeholder="输入设备号/设备名称/IP搜索"
           clearable
           class="search-input"
       />
+
+      <!-- 网络类型下拉选择 -->
+      <el-select
+          class="search-input"
+          v-model="networkTypeFilter"
+          placeholder="全部类型"
+          clearable
+      >
+        <el-option label="全部类型" value="" />
+        <el-option label="ETH (有线)" value="ETH" />
+        <el-option label="WiFi (无线)" value="WiFi" />
+      </el-select>
+
       <el-button type="primary"  @click="searchDevices">
         搜索
       </el-button>
@@ -242,7 +255,7 @@
 </template>
 
 <script setup lang="ts">
-import {ref, computed, onMounted, nextTick, watch} from 'vue'
+import {ref, onMounted, nextTick} from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
@@ -251,7 +264,7 @@ const router = useRouter()
 
 // 设备列表相关状态
 const searchText = ref('')
-const devices = ref<any[]>([])
+const networkTypeFilter = ref('')
 const filteredDevices = ref<any[]>([])
 
 // 升级相关状态
@@ -302,19 +315,43 @@ function batchUpgrade() {
 
 }
 
-// 搜索设备
-const normalize = (str: string) =>
-    str.toLowerCase().replace(/\s+/g, '').replace(/[^\x00-\x7F]/g, '')
 
+const setList= (list:any[]) => {
+
+    let newList = [];
+    for (let i = 0; i < list.length; i++) {
+      let obj = list[i];
+
+      let pd = true;
+
+      //过滤关键字
+      if((searchText.value!=null && searchText.value!='')) {
+        if((obj.name.indexOf(searchText.value)==-1
+            && obj.id.indexOf(searchText.value)==-1
+            && obj.ip.indexOf(searchText.value)==-1)){
+          pd = false;
+        }
+      }
+
+      //过滤网络类型
+      if((networkTypeFilter.value!=null && networkTypeFilter.value!='')){
+        if(obj.networkType.indexOf(networkTypeFilter.value)==-1){
+          pd = false;
+        }
+      }
+
+      if(pd){
+        newList.push(obj);
+      }
+
+    }
+    filteredDevices.value = newList
+}
+
+
+// 搜索设备
 const searchDevices = () => {
-  const keyword = normalize(searchText.value)
-  if (!keyword) {
-    filteredDevices.value = devices.value
-  } else {
-    filteredDevices.value = devices.value.filter(d =>
-        normalize(d.id).includes(keyword) || normalize(d.ip).includes(keyword)
-    )
-  }
+  setList(filteredDevices.value)
 }
 
 // 跳转配置页
@@ -372,7 +409,7 @@ const submitUpgrade = async () => {
   // 确认升级
   try {
 
-    let message = isBatch.value ? `确认要批量升级吗？` :`确定要对设备 ${currentDevice.value.id} (${currentDevice.value.ip}) 进行升级吗？`  ;
+    let message = isBatch.value ? `确认要批量升级${multipleSelection.value.length}个设备吗？` :`确定要对设备 ${currentDevice.value.id} (${currentDevice.value.ip}) 进行升级吗？`  ;
 
     await ElMessageBox.confirm(
         message,
@@ -749,18 +786,12 @@ const handleMqttMessage = (event: any, data: any) => {
 
 // 监听 Electron UDP 发现设备
 onMounted(() => {
-  // 清空现有设备列表
-  devices.value = []
-  filteredDevices.value = []
-
   // 监听设备发现（这个事件应该由主进程在扫描到设备时触发）
   window.electronAPI.onDeviceDiscovered((list: any[]) => {
     if(!multipleSelection.value || !multipleSelection.value.length ||multipleSelection.value.length==0){
-      devices.value = [...list]
-      filteredDevices.value = [...list]
+        setList([...list])
     }
   })
-
   // 监听 MQTT 消息
   window.electronAPI.onMqttMessagePublished(handleMqttMessage)
 })

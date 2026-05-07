@@ -3,7 +3,7 @@
     <!-- 固定头部 -->
     <div class="header-wrapper">
       <div class="header">
-        <h2 class="title">DTU 配置 - {{ device?.id }}</h2>
+        <h2 class="title">DTU 配置 - {{ device?.name }} ————{{ device?.id }}</h2>
         <div class="actions">
 
           <el-button class="action-btn" type="default" @click="goBack">
@@ -36,19 +36,11 @@
         </div>
       </div>
 
-      <!-- Tab Header 固定 -->
-      <el-tabs v-model="activeTab" class="tabs-underline" type="card">
-        <el-tab-pane label="基本信息" name="basic" />
-        <el-tab-pane label="接口" name="interface" />
-        <el-tab-pane label="网络通道" name="networkChannels" />
-        <el-tab-pane label="Modbus" name="modbus" />
-        <el-tab-pane label="场景配置" name="scene" />
-      </el-tabs>
     </div>
 
     <!-- 滚动内容区域 -->
     <div class="tab-content-wrapper">
-      <el-tabs v-model="activeTab" class="tabs-content-wrapper" type="card">
+      <el-tabs v-model="activeTab" class="tabs-underline" type="card">
         <el-tab-pane label="基本信息" name="basic">
           <BasicConfig v-model="allConfig.basic" :device="device" />
         </el-tab-pane>
