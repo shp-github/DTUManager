@@ -10,30 +10,22 @@ https://gitee.com/shp-java/wt32-arduino-dtu
 ## 界面
 
 #### 设备列表
-![device.png](image/device.png)
+![设备列表.png](image/%E8%AE%BE%E5%A4%87%E5%88%97%E8%A1%A8.png)
 
-#### DHCP配置
-![dhcp.png](image/dhcp.png)
-![dhcp2.png](image/dhcp2.png)
+#### 设备统计
+![设备统计.png](image/%E8%AE%BE%E5%A4%87%E7%BB%9F%E8%AE%A1.png)
 
-#### 基本配置
-![base.png](image/base.png)
+#### 设备资源
+![设备资源.png](image/%E8%AE%BE%E5%A4%87%E8%B5%84%E6%BA%90.png)
 
-#### 接口配置
-![interface.png](image/interface.png)
+### 数据监听
+![数据监听.png](image/%E6%95%B0%E6%8D%AE%E7%9B%91%E5%90%AC.png)
 
-#### 网络配置
-![network1.png](image/network1.png)
-![network2.png](image/network2.png)
+### 本地监控
+![本地监控.png](image/%E6%9C%AC%E5%9C%B0%E7%9B%91%E6%8E%A7.png)
 
-#### 网络配置
-![modbus.png](image/modbus.png)
-
-#### 场景配置（待实现）
-![changjing.png](image/changjing.png)
-
-
-
+### DHCP
+![dhcp分配.png](image/dhcp%E5%88%86%E9%85%8D.png)
 
 ## 🔧 项目核心功能
 
