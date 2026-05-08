@@ -516,6 +516,11 @@ async function startUDPServer() {
                 console.error('❌ UDP服务错误:', err)
                 win?.webContents.send('server-error', { service: 'UDP', error: err.message })
             })
+
+            // 转发原始UDP消息到渲染进程
+            udpServer.on('message-received', (data) => {
+                win?.webContents.send('udp-message-received', data)
+            })
         } else {
             console.error('❌ UDP服务启动失败:', result.error)
         }
@@ -864,6 +869,56 @@ ipcMain.handle('scan-network', async () => {
     // 例如使用nmap或自定义扫描
     console.log('开始网络扫描...')
     return { scanning: true }
+})
+
+// 获取系统信息
+ipcMain.handle('get-system-info', async () => {
+    const cpus = os.cpus()
+    const totalMem = os.totalmem()
+    const freeMem = os.freemem()
+    const usedMem = totalMem - freeMem
+
+    // 计算CPU使用率
+    let totalIdle = 0, totalTick = 0
+    for (const cpu of cpus) {
+        for (const type in cpu.times) {
+            totalTick += cpu.times[type]
+        }
+        totalIdle += cpu.times.idle
+    }
+    const cpuUsage = ((1 - totalIdle / totalTick) * 100).toFixed(1)
+
+    // 获取网络接口
+    const networkInterfaces = os.networkInterfaces()
+    const networks: any[] = []
+    for (const [name, ifaces] of Object.entries(networkInterfaces)) {
+        if (!ifaces) continue
+        for (const iface of ifaces) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                networks.push({ name, ip: iface.address, mac: iface.mac, netmask: iface.netmask })
+            }
+        }
+    }
+
+    return {
+        hostname: os.hostname(),
+        platform: os.platform(),
+        arch: os.arch(),
+        osType: os.type(),
+        osRelease: os.release(),
+        cpuModel: cpus[0]?.model || '未知',
+        cpuCores: cpus.length,
+        cpuUsage: parseFloat(cpuUsage),
+        totalMemory: totalMem,
+        usedMemory: usedMem,
+        freeMemory: freeMem,
+        memoryUsage: parseFloat(((usedMem / totalMem) * 100).toFixed(1)),
+        uptime: os.uptime(),
+        networks,
+        nodeVersion: process.versions.node,
+        electronVersion: process.versions.electron,
+        chromeVersion: process.versions.chrome,
+    }
 })
 
 

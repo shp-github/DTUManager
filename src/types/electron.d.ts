@@ -99,6 +99,14 @@ declare global {
 
             mqttPublish(topic: any, message, options: { qos: number }): Boolean;
 
+            // UDP 消息监听
+            onUdpMessageReceived(callback: (event: any, data: any) => void): void;
+            removeUdpListeners(): void;
+            removeMqttListeners(): void;
+
+            // 系统信息
+            getSystemInfo(): Promise<any>;
+
         }
     }
 }

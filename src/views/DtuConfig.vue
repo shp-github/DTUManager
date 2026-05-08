@@ -34,30 +34,35 @@
           </div>
 
         </div>
+
+      </div>
+
+      <div>
+        <el-tabs v-model="activeTab" class="tabs-underline" type="card">
+          <el-tab-pane label="基本信息" name="basic">
+          </el-tab-pane>
+          <el-tab-pane label="接口" name="interface">
+          </el-tab-pane>
+          <el-tab-pane label="网络通道" name="networkChannels">
+          </el-tab-pane>
+          <el-tab-pane label="Modbus" name="modbus">
+          </el-tab-pane>
+          <el-tab-pane label="场景配置" name="scene">
+          </el-tab-pane>
+        </el-tabs>
       </div>
 
     </div>
 
-    <!-- 滚动内容区域 -->
     <div class="tab-content-wrapper">
-      <el-tabs v-model="activeTab" class="tabs-underline" type="card">
-        <el-tab-pane label="基本信息" name="basic">
-          <BasicConfig v-model="allConfig.basic" :device="device" />
-        </el-tab-pane>
-        <el-tab-pane label="接口" name="interface">
-          <InterfaceConfig v-model="allConfig.interface" />
-        </el-tab-pane>
-        <el-tab-pane label="网络通道" name="networkChannels">
-          <NetworkChannelConfig v-model="allConfig.networkChannels" :device="device" />
-        </el-tab-pane>
-        <el-tab-pane label="Modbus" name="modbus">
-          <ModbusConfig v-model="allConfig.modbus" />
-        </el-tab-pane>
-        <el-tab-pane label="场景配置" name="scene">
-          <SceneConfig v-model="allConfig.scene" />
-        </el-tab-pane>
-      </el-tabs>
+        <BasicConfig v-show="activeTab==='basic'" v-model="allConfig.basic" :device="device" />
+        <InterfaceConfig v-show="activeTab==='interface'" v-model="allConfig.interface" />
+        <NetworkChannelConfig v-show="activeTab==='networkChannels'" v-model="allConfig.networkChannels" :device="device" />
+        <ModbusConfig v-show="activeTab==='modbus'" v-model="allConfig.modbus" />
+        <SceneConfig v-show="activeTab==='scene'" v-model="allConfig.scene" />
     </div>
+
+
   </div>
 </template>
 
@@ -375,8 +380,11 @@ const saveConfig = async () => {
 
 /* 固定 Tab Header */
 .tabs-underline ::v-deep(.el-tabs__header) {
+  flex-shrink: 0;
+  background: #fff;
   border-bottom: 2px solid #e0e0e0;
   padding: 0 10px;
+  margin: 0;
 }
 
 .tabs-underline ::v-deep(.el-tabs__item) {
@@ -407,6 +415,19 @@ const saveConfig = async () => {
 
 /* 滚动内容 */
 .tab-content-wrapper {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-content-wrapper ::v-deep(.el-tabs) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.tab-content-wrapper ::v-deep(.el-tabs__content) {
   flex: 1;
   overflow-y: auto;
   padding: 15px;

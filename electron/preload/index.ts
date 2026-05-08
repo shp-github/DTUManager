@@ -63,6 +63,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.removeAllListeners('mqtt-message-published');
     },
 
+    // UDP消息监听
+    onUdpMessageReceived: (callback) =>
+        ipcRenderer.on('udp-message-received', callback),
+
+    removeUdpListeners: () => {
+        ipcRenderer.removeAllListeners('udp-message-received');
+    },
+
+    // 系统信息
+    getSystemInfo: () => ipcRenderer.invoke('get-system-info'),
+
     // DHCP相关API
     getNetworkInterfaces: () => ipcRenderer.invoke('get-network-interfaces'),
     getDHCPStatus: () => ipcRenderer.invoke('get-dhcp-status'),

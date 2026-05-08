@@ -48,6 +48,9 @@
 
     </div>
 
+    <p style="font-size: 18px; font-weight: 700; color: #333;">
+      当前设备数量：{{ filteredDevices.length }}
+    </p>
     <!-- 设备表格 -->
     <el-table
         :data="filteredDevices"

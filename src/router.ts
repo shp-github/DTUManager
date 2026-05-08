@@ -4,6 +4,9 @@ import DhcpView from './views/dhcpView.vue'
 import DtuConfig from './views/DtuConfig.vue'
 import ResourceMonitor from './views/ResourceMonitor.vue'
 import DeviceList from './views/DeviceList.vue'
+import DataMonitoring from './views/DataMonitoring.vue'
+import LocationInfo from './views/LocationInfo.vue'
+import DeviceResource from './views/DeviceResource.vue'
 
 const routes = [
     { path: '/', redirect: '/devices' },
@@ -26,6 +29,9 @@ const routes = [
     { path: '/log', component: LogView },
     { path: '/resource', component: ResourceMonitor },
     { path: '/dhcp', component: DhcpView },
+    { path: '/monitoring', name: 'DataMonitoring', component: DataMonitoring },
+    { path: '/local-info', name: 'LocationInfo', component: LocationInfo },
+    { path: '/device-resource', name: 'DeviceResource', component: DeviceResource },
 ]
 
 const router = createRouter({

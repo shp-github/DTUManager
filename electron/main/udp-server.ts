@@ -331,6 +331,15 @@ export class UDPServer extends EventEmitter {
         try {
             const payload = JSON.parse(msg.toString());
 
+            // 转发原始UDP消息事件
+            this.emit('message-received', {
+                raw: msg.toString(),
+                ip: rinfo.address,
+                port: rinfo.port,
+                timestamp: Date.now(),
+                parsed: payload
+            });
+
             if (payload.type === 'discover') {
                 const id = payload.id || rinfo.address;
                 const currentTime = Date.now();

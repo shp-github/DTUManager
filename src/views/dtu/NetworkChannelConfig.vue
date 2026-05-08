@@ -2,9 +2,10 @@
   <div class="network-config-container">
     <!-- 顶部通道选择 -->
     <div class="header">
+      <br/>
       <el-button-group>
         <el-button
-            v-for="(channel, index) in channels"
+              v-for="(channel, index) in channels"
             :key="index"
             :class="{ 'is-active': activeChannelIndex === index }"
             @click="activeChannelIndex = index"
@@ -115,7 +116,7 @@ interface Channel {
   enabled: boolean;
   source: "serial1";
   protocol: "tcp" | "mqtt";
-  target: string;  // 改为 target 与后端一致
+  target: string;
   port: number;
   heartbeatTime: number;
   username: string;
@@ -125,7 +126,7 @@ interface Channel {
   subscribeTopic: string;
   publishTopic: string;
   clientID: string;
-  QOS: number;  // 改为 number 类型
+  QOS: number;
   PubRetain: boolean;
   lastWillMessage: string;
 }
@@ -160,20 +161,20 @@ const deepClone = <T>(obj: T): T => {
 
 function defaultChannel(i: number): Channel {
   return {
-    enabled: i === 0,
+    enabled: false,
     source: "serial1",
-    protocol: i === 0 ? "mqtt" : "tcp",
-    target: i === 0 && props.device ? "121.36.223.224" : "",
-    port: i === 0 ? 1883 : 50001,
-    heartbeatTime: i === 0 ? 30 : 0,
-    username: i === 0 ? "device" : "",
-    password: i === 0 ? "11223344" : "",
-    registerPackage: i === 0 && props.device ? props.device.id : "",
-    heartbeatPackage: i === 0 && props.device ? props.device.id : "",
-    subscribeTopic: i === 0 && props.device ? `/server/coo/${props.device.id}` : "",
-    publishTopic: i === 0 && props.device ? `/dev/coo/${props.device.id}` : "",
-    clientID: i === 0 && props.device ? props.device.id : "",
-    QOS: 0,  // 改为 number
+    protocol:"mqtt",
+    target: "121.36.223.224" ,
+    port:1883 ,
+    heartbeatTime:30,
+    username: "device" ,
+    password: "11223344",
+    registerPackage:  props.device ? props.device.id : "",
+    heartbeatPackage:props.device ? props.device.id : "",
+    subscribeTopic: props.device ? `/server/coo/${props.device.id}` : "",
+    publishTopic: props.device ? `/dev/coo/${props.device.id}` : "",
+    clientID: props.device ? props.device.id : "",
+    QOS: 0,
     PubRetain: false,
     lastWillMessage: "",
   }
@@ -267,6 +268,7 @@ const handleProtocolChange = () => {
   if (!ch.enabled) return;
 
   if (ch.protocol === "tcp") {
+    ch.source = "serial1";
     ch.target = "192.168.2.45";
     ch.port = 50001;
     ch.username = "";
@@ -278,6 +280,7 @@ const handleProtocolChange = () => {
     ch.PubRetain = false;
     ch.lastWillMessage = "";
   } else if (ch.protocol === "mqtt" && props.device) {
+    ch.source = "serial1";
     ch.port = 1883;
     ch.username = "device";
     ch.password = "11223344";
@@ -296,29 +299,19 @@ const handleProtocolChange = () => {
 
 const handleEnableChange = (enabled: boolean) => {
   const ch = currentChannel.value;
-  if (!enabled) {
-    Object.assign(ch, {
-      enabled: false,
-      source: "serial1",
-      protocol: "tcp",
-      target: "",
-      port: 0,
-      heartbeatTime: 0,
-      username: "",
-      password: "",
-      registerPackage: "",
-      heartbeatPackage: "",
-      subscribeTopic: "",
-      publishTopic: "",
-      clientID: "",
-      QOS: 0,
-      PubRetain: false,
-      lastWillMessage: ""
-    });
-  } else {
-    ch.enabled = true;
-    ch.target = "121.36.223.224";
-    ch.heartbeatTime = 30;
+  if (enabled) {
+    ch.protocol = "mqtt";
+    ch.source = "serial1";
+    ch.target = "192.168.2.45";
+    ch.port = 50001;
+    ch.username = "";
+    ch.password = "";
+    ch.subscribeTopic = "";
+    ch.publishTopic = "";
+    ch.clientID = "";
+    ch.QOS = 0;
+    ch.PubRetain = false;
+    ch.lastWillMessage = "";
     if (props.device) {
       ch.registerPackage = props.device.id
       ch.heartbeatPackage = props.device.id

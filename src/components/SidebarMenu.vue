@@ -28,17 +28,30 @@
           <template #title>设备列表</template>
         </el-menu-item>
         <el-menu-item index="/resource">
-          <el-icon><DataLine /></el-icon>
-          <template #title>资源监控</template>
+          <el-icon><TrendCharts /></el-icon>
+          <template #title>设备统计</template>
+        </el-menu-item>
+        <el-menu-item index="/device-resource">
+          <el-icon><Odometer /></el-icon>
+          <template #title>设备资源</template>
+        </el-menu-item>
+        <el-menu-item index="/monitoring">
+          <el-icon><View /></el-icon>
+          <template #title>数据监听</template>
+        </el-menu-item>
+        <el-menu-item index="/local-info">
+          <el-icon><Place /></el-icon>
+          <template #title>本地信息</template>
+        </el-menu-item>
+        <el-menu-item index="/dhcp">
+          <el-icon><Connection /></el-icon>
+          <template #title>DHCP分配</template>
         </el-menu-item>
         <el-menu-item index="/log">
           <el-icon><Document /></el-icon>
           <template #title>日志</template>
         </el-menu-item>
-        <el-menu-item index="/dhcp">
-          <el-icon><Setting  /></el-icon>
-          <template #title>DHCP分配</template>
-        </el-menu-item>
+
       </el-menu>
     </el-aside>
 
@@ -52,7 +65,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Expand, Fold, Monitor, DataLine, Document,Setting  } from '@element-plus/icons-vue'
+import { Expand, Fold, Monitor, TrendCharts, Odometer, View, Place, Connection, Document } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
