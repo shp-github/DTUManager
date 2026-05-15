@@ -7,6 +7,8 @@ import DeviceList from './views/DeviceList.vue'
 import DataMonitoring from './views/DataMonitoring.vue'
 import LocationInfo from './views/LocationInfo.vue'
 import DeviceResource from './views/DeviceResource.vue'
+import NetworkTools from './views/NetworkTools.vue'
+import SerialTools from './views/SerialTools.vue'
 
 const routes = [
     { path: '/', redirect: '/devices' },
@@ -32,6 +34,8 @@ const routes = [
     { path: '/monitoring', name: 'DataMonitoring', component: DataMonitoring },
     { path: '/local-info', name: 'LocationInfo', component: LocationInfo },
     { path: '/device-resource', name: 'DeviceResource', component: DeviceResource },
+    { path: '/network-tools', name: 'NetworkTools', component: NetworkTools },
+    { path: '/serial-tools', name: 'SerialTools', component: SerialTools },
 ]
 
 const router = createRouter({

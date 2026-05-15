@@ -1,10 +1,14 @@
+
 {
   "name": "electron-vue-vite",
-  "version": "1.0.6",
+  "version": "1.0.8",
   "main": "dist-electron/main/index.js",
   "description": "",
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "private": true,
   "keywords": [
     "electron",
@@ -20,7 +24,6 @@
   },
   "type": "module",
   "scripts": {
-    "install": "yarn install",
     "dev": "chcp 65001 && vite",
     "preview": "vite preview",
     "build": "vite build && tsc",
@@ -47,6 +50,7 @@
     "element-plus": "^2.11.7",
     "express": "^5.1.0",
     "mqtt": "^5.14.1",
+    "serialport": "^12.0.0",
     "vue-router": "^4.6.3",
     "ws": "^8.18.3"
   },

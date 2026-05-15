@@ -39,17 +39,26 @@
           <el-icon><View /></el-icon>
           <template #title>数据监听</template>
         </el-menu-item>
-        <el-menu-item index="/local-info">
-          <el-icon><Place /></el-icon>
-          <template #title>本地信息</template>
-        </el-menu-item>
+
         <el-menu-item index="/dhcp">
           <el-icon><Connection /></el-icon>
           <template #title>DHCP分配</template>
         </el-menu-item>
+        <el-menu-item index="/network-tools">
+          <el-icon><Position /></el-icon>
+          <template #title>网络工具</template>
+        </el-menu-item>
+        <el-menu-item index="/serial-tools">
+          <el-icon><SetUp /></el-icon>
+          <template #title>串口工具</template>
+        </el-menu-item>
         <el-menu-item index="/log">
           <el-icon><Document /></el-icon>
           <template #title>日志</template>
+        </el-menu-item>
+        <el-menu-item index="/local-info">
+          <el-icon><Place /></el-icon>
+          <template #title>本地信息</template>
         </el-menu-item>
 
       </el-menu>
@@ -65,7 +74,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Expand, Fold, Monitor, TrendCharts, Odometer, View, Place, Connection, Document } from '@element-plus/icons-vue'
+import { Expand, Fold, Monitor, TrendCharts, Odometer, View, Place, Connection, Document, Position, SetUp } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()

@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 
 interface DeviceStatus {
   deviceId: string
+  clientId: string
   uptime: number
   heap_free: number
   heap_total: number
@@ -79,6 +80,7 @@ const handleUdpMessage = (_event: any, data: any) => {
 
     const status: DeviceStatus = {
       deviceId,
+      clientId: payload.clientId || '',
       uptime: payload.uptime || 0,
       heap_free: payload.heap_free || 0,
       heap_total: payload.heap_total || 0,
@@ -126,6 +128,7 @@ onBeforeUnmount(() => {
         <div class="device-title">
           <span class="chip-badge">{{ device.chip_model }}</span>
           <span class="device-id">{{ device.deviceId }}</span>
+          <span v-if="device.clientId" class="client-id">{{ device.clientId }}</span>
         </div>
         <div class="device-meta">
           <el-tag size="small" :color="getNetworkColor(device.network)" effect="dark" style="border:none;">
@@ -365,6 +368,15 @@ onBeforeUnmount(() => {
   font-weight: 600;
   color: #333;
   font-family: 'Consolas', monospace;
+}
+
+.client-id {
+  font-size: 13px;
+  color: #909399;
+  font-family: 'Consolas', monospace;
+  background: #f0f2f5;
+  padding: 2px 8px;
+  border-radius: 4px;
 }
 
 .device-meta {

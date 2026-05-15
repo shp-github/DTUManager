@@ -4,6 +4,8 @@ import {fileURLToPath} from 'node:url'
 import path from 'path'
 import os from 'os'
 import fs from 'fs'
+import { exec } from 'child_process'
+import net from 'net'
 
 // 导入服务模块
 import fileServer from './fileServer'
@@ -863,6 +865,23 @@ ipcMain.handle('get-local-ip', async () => {
     return addresses.length > 0 ? addresses[0] : '127.0.0.1'
 })
 
+// 获取可用的网络IP列表（用于选择网卡）
+ipcMain.handle('get-available-ips', async () => {
+    if (!udpServer) {
+        return []
+    }
+    return udpServer.getAvailableIPs()
+})
+
+// 设置选择的本地IP
+ipcMain.handle('set-selected-ip', async (_event, ip: string) => {
+    if (!udpServer) {
+        return { success: false, error: 'UDP服务未启动' }
+    }
+    udpServer.setSelectedIP(ip)
+    return { success: true }
+})
+
 // 网络扫描
 ipcMain.handle('scan-network', async () => {
     // 这里可以添加网络扫描逻辑
@@ -918,6 +937,471 @@ ipcMain.handle('get-system-info', async () => {
         nodeVersion: process.versions.node,
         electronVersion: process.versions.electron,
         chromeVersion: process.versions.chrome,
+    }
+})
+
+
+// =================== 网络工具 IPC ===================
+
+// Ping 测试
+ipcMain.handle('network-ping', async (_event, host: string) => {
+    return new Promise((resolve) => {
+        const cmd = process.platform === 'win32' ? `ping -n 4 ${host}` : `ping -c 4 ${host}`
+        exec(cmd, { timeout: 15000 }, (error, stdout, stderr) => {
+            const lines = stdout ? stdout.split('\n').filter(l => l.trim()) : []
+            resolve({
+                success: !error,
+                lines,
+                error: error ? (stderr || error.message) : null
+            })
+        })
+    })
+})
+
+// TCP 端口扫描
+ipcMain.handle('network-tcp-scan', async (_event, { host, ports }: { host: string; ports: number[] }) => {
+    const results: { port: number; status: string; time?: number }[] = []
+
+    const scanPort = (port: number): Promise<{ port: number; status: string; time?: number }> => {
+        return new Promise((resolve) => {
+            const start = Date.now()
+            const socket = new net.Socket()
+            socket.setTimeout(2000)
+
+            socket.on('connect', () => {
+                const time = Date.now() - start
+                socket.destroy()
+                resolve({ port, status: 'open', time })
+            })
+
+            socket.on('timeout', () => {
+                socket.destroy()
+                resolve({ port, status: 'closed' })
+            })
+
+            socket.on('error', () => {
+                socket.destroy()
+                resolve({ port, status: 'closed' })
+            })
+
+            socket.connect(port, host)
+        })
+    }
+
+    // 并发扫描（最多10个并发）
+    const batchSize = 10
+    for (let i = 0; i < ports.length; i += batchSize) {
+        const batch = ports.slice(i, i + batchSize)
+        const batchResults = await Promise.all(batch.map(scanPort))
+        results.push(...batchResults)
+    }
+
+    return { results }
+})
+
+// =================== TCP/UDP 客户端 IPC ===================
+
+let tcpClient: net.Socket | null = null
+let udpClient: any = null
+let networkProtocol: 'tcp' | 'udp' = 'tcp'
+let networkTarget = { host: '', port: 0 }
+
+// TCP/UDP 服务端
+let tcpServer: net.Server | null = null
+let tcpServerClients: net.Socket[] = []
+let udpServer2: any = null  // 网络工具用的 UDP 服务端
+let serverMode = false
+
+// 获取网卡接口列表（用于网络工具选择）
+ipcMain.handle('get-network-interfaces-list', async () => {
+    const interfaces = os.networkInterfaces()
+    const result: { name: string; ip: string; mac: string; netmask: string }[] = []
+    for (const [name, ifaces] of Object.entries(interfaces)) {
+        if (!ifaces) continue
+        for (const iface of ifaces) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                result.push({ name, ip: iface.address, mac: iface.mac, netmask: iface.netmask })
+            }
+        }
+    }
+    // 也加上 0.0.0.0 方便监听所有
+    result.unshift({ name: '所有接口', ip: '0.0.0.0', mac: '', netmask: '' })
+    return result
+})
+
+// 服务端启动
+ipcMain.handle('network-server-start', async (_event, { host, port, protocol }: { host: string; port: number; protocol: 'tcp' | 'udp' }) => {
+    try {
+        networkProtocol = protocol
+        serverMode = true
+
+        if (protocol === 'tcp') {
+            // 关闭旧服务
+            if (tcpServer) {
+                tcpServer.close()
+                tcpServerClients.forEach(c => c.destroy())
+                tcpServerClients = []
+                tcpServer = null
+            }
+
+            return new Promise((resolve) => {
+                tcpServer = net.createServer((socket) => {
+                    const clientAddr = `${socket.remoteAddress}:${socket.remotePort}`
+                    tcpServerClients.push(socket)
+                    win?.webContents.send('network-data', { client: clientAddr, data: `[客户端连接] ${clientAddr}` })
+
+                    socket.on('data', (data: Buffer) => {
+                        win?.webContents.send('network-data', {
+                            hex: data.toString('hex'),
+                            data: data.toString()
+                        })
+                    })
+
+                    socket.on('close', () => {
+                        tcpServerClients = tcpServerClients.filter(c => c !== socket)
+                        win?.webContents.send('network-data', { data: `[客户端断开] ${clientAddr}`, hex: '' })
+                    })
+
+                    socket.on('error', (err: Error) => {
+                        win?.webContents.send('network-data', { data: `[客户端错误] ${err.message}`, hex: '' })
+                    })
+                })
+
+                tcpServer.on('error', (err: Error) => {
+                    resolve({ success: false, error: err.message })
+                })
+
+                tcpServer.listen(port, host, () => {
+                    resolve({ success: true })
+                })
+            })
+        } else {
+            // UDP 服务端
+            const dgram = require('dgram')
+            if (udpServer2) {
+                udpServer2.close()
+                udpServer2 = null
+            }
+            udpServer2 = dgram.createSocket('udp4')
+
+            udpServer2.on('message', (msg: Buffer, rinfo: any) => {
+                // 记录来源，方便回复
+                networkTarget = { host: rinfo.address, port: rinfo.port }
+                win?.webContents.send('network-data', {
+                    hex: msg.toString('hex'),
+                    data: msg.toString()
+                })
+            })
+
+            udpServer2.on('error', (err: Error) => {
+                win?.webContents.send('network-data', { data: `[ERROR] ${err.message}`, hex: '' })
+            })
+
+            return new Promise((resolve) => {
+                udpServer2.bind(port, host, () => {
+                    resolve({ success: true })
+                })
+            })
+        }
+    } catch (e: any) {
+        return { success: false, error: e.message }
+    }
+})
+
+// 服务端停止
+ipcMain.handle('network-server-stop', async () => {
+    try {
+        serverMode = false
+        if (tcpServer) {
+            tcpServerClients.forEach(c => c.destroy())
+            tcpServerClients = []
+            tcpServer.close()
+            tcpServer = null
+        }
+        if (udpServer2) {
+            udpServer2.close()
+            udpServer2 = null
+        }
+        return { success: true }
+    } catch (e: any) {
+        return { success: false, error: e.message }
+    }
+})
+
+// TCP/UDP 连接
+ipcMain.handle('network-tcp-connect', async (_event, { host, port, protocol }: { host: string; port: number; protocol: 'tcp' | 'udp' }) => {
+    try {
+        networkProtocol = protocol
+        networkTarget = { host, port }
+
+        if (protocol === 'tcp') {
+            // 关闭旧连接
+            if (tcpClient) {
+                tcpClient.destroy()
+                tcpClient = null
+            }
+
+            return new Promise((resolve) => {
+                tcpClient = new net.Socket()
+                let resolved = false
+
+                tcpClient.setTimeout(5000)
+
+                tcpClient.connect(port, host, () => {
+                    resolved = true
+                    resolve({ success: true })
+                })
+
+                tcpClient.on('data', (data: Buffer) => {
+                    win?.webContents.send('network-data', {
+                        hex: data.toString('hex'),
+                        data: data.toString()
+                    })
+                })
+
+                tcpClient.on('error', (err: Error) => {
+                    if (!resolved) {
+                        resolved = true
+                        resolve({ success: false, error: err.message })
+                    }
+                    win?.webContents.send('network-data', { data: `[ERROR] ${err.message}`, hex: '' })
+                })
+
+                tcpClient.on('close', () => {
+                    win?.webContents.send('network-data', { data: '[连接已关闭]', hex: '' })
+                    tcpClient = null
+                })
+
+                tcpClient.on('timeout', () => {
+                    if (!resolved) {
+                        resolved = true
+                        tcpClient?.destroy()
+                        resolve({ success: false, error: '连接超时' })
+                    }
+                })
+            })
+        } else {
+            // UDP
+            const dgram = require('dgram')
+            if (udpClient) {
+                udpClient.close()
+                udpClient = null
+            }
+            udpClient = dgram.createSocket('udp4')
+
+            udpClient.on('message', (msg: Buffer) => {
+                win?.webContents.send('network-data', {
+                    hex: msg.toString('hex'),
+                    data: msg.toString()
+                })
+            })
+
+            udpClient.on('error', (err: Error) => {
+                win?.webContents.send('network-data', { data: `[ERROR] ${err.message}`, hex: '' })
+            })
+
+            // UDP 绑定随机端口
+            udpClient.bind(0)
+            return { success: true }
+        }
+    } catch (e: any) {
+        return { success: false, error: e.message }
+    }
+})
+
+// 断开连接
+ipcMain.handle('network-tcp-disconnect', async () => {
+    try {
+        if (tcpClient) {
+            tcpClient.destroy()
+            tcpClient = null
+        }
+        if (udpClient) {
+            udpClient.close()
+            udpClient = null
+        }
+        return { success: true }
+    } catch (e: any) {
+        return { success: false, error: e.message }
+    }
+})
+
+// 发送数据（客户端+服务端通用）
+ipcMain.handle('network-tcp-send', async (_event, { data, hex }: { data: string; hex: boolean }) => {
+    try {
+        let buffer: Buffer
+        if (hex) {
+            const hexStr = data.replace(/\s+/g, '')
+            buffer = Buffer.from(hexStr, 'hex')
+        } else {
+            buffer = Buffer.from(data)
+        }
+
+        if (serverMode) {
+            // 服务端模式
+            if (networkProtocol === 'tcp') {
+                if (tcpServerClients.length === 0) {
+                    return { success: false, error: '没有客户端连接' }
+                }
+                // 广播给所有连接的客户端
+                tcpServerClients.forEach(c => {
+                    if (!c.destroyed) c.write(buffer)
+                })
+                return { success: true }
+            } else {
+                if (!udpServer2 || !networkTarget.host) {
+                    return { success: false, error: 'UDP服务未启动或无目标' }
+                }
+                return new Promise((resolve) => {
+                    udpServer2.send(buffer, networkTarget.port, networkTarget.host, (err: any) => {
+                        if (err) resolve({ success: false, error: err.message })
+                        else resolve({ success: true })
+                    })
+                })
+            }
+        } else {
+            // 客户端模式
+            if (networkProtocol === 'tcp') {
+                if (!tcpClient || tcpClient.destroyed) {
+                    return { success: false, error: 'TCP未连接' }
+                }
+                tcpClient.write(buffer)
+                return { success: true }
+            } else {
+                if (!udpClient) {
+                    return { success: false, error: 'UDP未连接' }
+                }
+                return new Promise((resolve) => {
+                    udpClient.send(buffer, networkTarget.port, networkTarget.host, (err: any) => {
+                        if (err) resolve({ success: false, error: err.message })
+                        else resolve({ success: true })
+                    })
+                })
+            }
+        }
+    } catch (e: any) {
+        return { success: false, error: e.message }
+    }
+})
+
+// =================== 串口工具 IPC ===================
+
+let serialPort: any = null
+let SerialPortModule: any = null
+
+// 动态加载 serialport
+async function getSerialPortModule() {
+    if (!SerialPortModule) {
+        try {
+            SerialPortModule = require('serialport')
+        } catch (e) {
+            console.warn('⚠️ serialport 模块未安装')
+            return null
+        }
+    }
+    return SerialPortModule
+}
+
+// 获取串口列表
+ipcMain.handle('serial-list-ports', async () => {
+    try {
+        const sp = await getSerialPortModule()
+        if (!sp) return { ports: [], error: 'serialport 模块未安装，请执行: yarn add serialport' }
+        const ports = await sp.SerialPort.list()
+        return { ports }
+    } catch (e: any) {
+        return { ports: [], error: e.message }
+    }
+})
+
+// 打开串口
+ipcMain.handle('serial-open', async (_event, { path: portPath, baudRate: baud }) => {
+    try {
+        const sp = await getSerialPortModule()
+        if (!sp) return { success: false, error: 'serialport 模块未安装' }
+
+        if (serialPort && serialPort.isOpen) {
+            serialPort.close()
+            serialPort = null
+        }
+
+        return new Promise((resolve) => {
+            serialPort = new sp.SerialPort({ path: portPath, baudRate: baud }, (err: any) => {
+                if (err) {
+                    serialPort = null
+                    resolve({ success: false, error: err.message })
+                    return
+                }
+                resolve({ success: true })
+            })
+
+            serialPort.on('data', (data: Buffer) => {
+                win?.webContents.send('serial-data', {
+                    data: data.toString(),
+                    hex: data.toString('hex')
+                })
+            })
+
+            serialPort.on('error', (err: Error) => {
+                console.error('串口错误:', err.message)
+                win?.webContents.send('serial-data', { data: `[ERROR] ${err.message}`, hex: '' })
+            })
+
+            serialPort.on('close', () => {
+                console.log('串口已关闭')
+            })
+        })
+    } catch (e: any) {
+        return { success: false, error: e.message }
+    }
+})
+
+// 关闭串口
+ipcMain.handle('serial-close', async () => {
+    try {
+        if (serialPort && serialPort.isOpen) {
+            serialPort.close()
+            serialPort = null
+        }
+        return { success: true }
+    } catch (e: any) {
+        return { success: false, error: e.message }
+    }
+})
+
+// 发送数据
+ipcMain.handle('serial-send', async (_event, { data, hex }: { data: string; hex: boolean }) => {
+    try {
+        if (!serialPort || !serialPort.isOpen) {
+            return { success: false, error: '串口未打开' }
+        }
+
+        let buffer: Buffer
+        if (hex) {
+            // HEX 模式：将空格分隔的十六进制字符串转为 Buffer
+            const hexStr = data.replace(/\s+/g, '')
+            buffer = Buffer.from(hexStr, 'hex')
+        } else {
+            buffer = Buffer.from(data + '\r\n')
+        }
+
+        return new Promise((resolve) => {
+            serialPort.write(buffer, (err: any) => {
+                if (err) {
+                    resolve({ success: false, error: err.message })
+                } else {
+                    serialPort.drain((drainErr: any) => {
+                        if (drainErr) {
+                            resolve({ success: false, error: drainErr.message })
+                        } else {
+                            resolve({ success: true })
+                        }
+                    })
+                }
+            })
+        })
+    } catch (e: any) {
+        return { success: false, error: e.message }
     }
 })
 
