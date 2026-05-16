@@ -30,6 +30,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     connectMqtt: (deviceIp) => ipcRenderer.invoke('connect-mqtt', deviceIp),
     deviceReboot: (deviceIp) => ipcRenderer.invoke('device-reboot', deviceIp),
 
+    // 网卡IP选择相关
+    getAvailableIPs: () => ipcRenderer.invoke('get-available-ips'),
+    setSelectedIP: (ip: string) => ipcRenderer.invoke('set-selected-ip', ip),
+
 
     // MQTT 相关 API
     mqttPublish: (topic, message, options) =>

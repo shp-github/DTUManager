@@ -34,6 +34,7 @@ export class UDPServer extends EventEmitter {
     private configServer: dgram.Socket | null = null;
     private cleanupInterval: NodeJS.Timeout | null = null;
     private win: BrowserWindow | null = null;
+    private selectedLocalIP: string | null = null;
 
     constructor(options: UDPServerOptions = {}) {
         super();
@@ -420,13 +421,35 @@ export class UDPServer extends EventEmitter {
         }
     }
 
+    // 设置用户选择的本地IP
+    setSelectedIP(ip: string): void {
+        this.selectedLocalIP = ip;
+        console.log(`✅ 已设置本地IP: ${ip}`);
+    }
+
+    // 获取用户选择的本地IP
+    getSelectedIP(): string | null {
+        return this.selectedLocalIP;
+    }
+
+    // 获取所有可用的网络IP地址（公开方法）
+    getAvailableIPs(): string[] {
+        return this.getNetworkAddresses();
+    }
+
     private getLocalIP(): string {
+        // 如果用户已选择IP，直接使用
+        if (this.selectedLocalIP) {
+            console.log(`使用用户选择的IP: ${this.selectedLocalIP}`);
+            return this.selectedLocalIP;
+        }
+
         // 获取本机所有网络地址
         const addresses = this.getNetworkAddresses();
 
         addresses.forEach((address) => {
-            console.log(`获取本机所有网络地址：address： ${address}`)
-        })
+            console.log(`获取本机所有网络地址：address： ${address}`);
+        });
 
         // 构建完整的下载 URL（使用第一个可用的局域网 IP）
         return addresses[0] || 'localhost';
