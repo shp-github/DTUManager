@@ -97,6 +97,12 @@ yarn install
 
 ###### 📦 打包桌面程序
 ```aiignore
+首先执行 
+npm run build
+然后执行
+build:win
+
+
 使用 electron-builder（推荐）
 electron-builder --win --x64
 

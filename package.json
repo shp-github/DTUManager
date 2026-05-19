@@ -68,13 +68,10 @@
       "package.json"
     ],
     "win": {
-      "target": [
-        "nsis",
-        "zip"
-      ],
+      "target": ["nsis", "zip"],
       "icon": "public/1.png",
       "certificateFile": "certs/cert.pfx",
-      "certificatePassword": "2948299576"
+      "certificatePassword": "123456"
     },
     "nsis": {
       "oneClick": false,
