@@ -107,6 +107,12 @@ declare global {
             // 系统信息
             getSystemInfo(): Promise<any>;
 
+            // 日志查询API
+            getLogDates(): Promise<string[]>;
+            getLogDevices(date: string): Promise<{ id: string; name: string }[]>;
+            getLogFiles(date: string, deviceId: string): Promise<string[]>;
+            readLogFile(date: string, deviceId: string, protocol: string): Promise<string>;
+
         }
     }
 }

@@ -88,6 +88,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getDHCPLeases: () => ipcRenderer.invoke('get-dhcp-leases'),
     getDHCPConfig: () => ipcRenderer.invoke('get-dhcp-config'),
 
+    // 日志查询API
+    getLogDates: () => ipcRenderer.invoke('get-log-dates'),
+    getLogDevices: (date: string) => ipcRenderer.invoke('get-log-devices', date),
+    getLogFiles: (date: string, deviceId: string) => ipcRenderer.invoke('get-log-files', { date, deviceId }),
+    readLogFile: (date: string, deviceId: string, protocol: string) =>
+        ipcRenderer.invoke('read-log-file', { date, deviceId, protocol }),
+
 
 })
 

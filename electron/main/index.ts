@@ -13,6 +13,61 @@ import SimpleDHCPServer, {DHCPServerConfig} from './simple-dhcp-server';
 import {UDPServer} from './udp-server'
 import MQTTServer from './mqtt-server'
 
+// =================== 日志服务 ===================
+let LOGS_DIR = ''
+
+function getLogsDir(): string {
+    if (!LOGS_DIR) {
+        LOGS_DIR = path.join(process.env.APP_ROOT || process.cwd(), 'logs')
+    }
+    return LOGS_DIR
+}
+
+function getCurrentDateStr(): string {
+    const now = new Date()
+    const yyyy = now.getFullYear()
+    const mm = String(now.getMonth() + 1).padStart(2, '0')
+    const dd = String(now.getDate()).padStart(2, '0')
+    return `${yyyy}-${mm}-${dd}`
+}
+
+function getTimeStr(): string {
+    const now = new Date()
+    const hh = String(now.getHours()).padStart(2, '0')
+    const mm = String(now.getMinutes()).padStart(2, '0')
+    const ss = String(now.getSeconds()).padStart(2, '0')
+    const ms = String(now.getMilliseconds()).padStart(3, '0')
+    return `${hh}:${mm}:${ss}.${ms}`
+}
+
+function writeLog(deviceId: string, protocol: 'udp' | 'mqtt', content: string, deviceName?: string) {
+    try {
+        const dateStr = getCurrentDateStr()
+        const logDir = path.join(getLogsDir(), dateStr, deviceId)
+        if (!fs.existsSync(logDir)) {
+            fs.mkdirSync(logDir, { recursive: true })
+        }
+        const logFile = path.join(logDir, `${protocol}.log`)
+        const timeStr = getTimeStr()
+        const logLine = `[${timeStr}] ${content}\n`
+        fs.appendFileSync(logFile, logLine, 'utf-8')
+        // 保存设备名称元数据
+        if (deviceName) {
+            const infoFile = path.join(logDir, 'device_info.txt')
+            if (!fs.existsSync(infoFile)) {
+                fs.writeFileSync(infoFile, deviceName, 'utf-8')
+            } else {
+                const existing = fs.readFileSync(infoFile, 'utf-8').trim()
+                if (existing !== deviceName) {
+                    fs.writeFileSync(infoFile, deviceName, 'utf-8')
+                }
+            }
+        }
+    } catch (err) {
+        console.error('写日志失败:', err)
+    }
+}
+
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -522,6 +577,10 @@ async function startUDPServer() {
             // 转发原始UDP消息到渲染进程
             udpServer.on('message-received', (data) => {
                 win?.webContents.send('udp-message-received', data)
+                // 写入日志
+                const deviceId = data.parsed?.id || data.ip || 'unknown'
+                const deviceName = data.parsed?.name || ''
+                writeLog(deviceId, 'udp', JSON.stringify(data.parsed || data.raw), deviceName)
             })
         } else {
             console.error('❌ UDP服务启动失败:', result.error)
@@ -555,6 +614,10 @@ async function startMQTTServer() {
                 if (message.client) {
                     win?.webContents.send('mqtt-message-published', message)
                     win?.webContents.send('device-config-message', message)
+                    // 写入日志
+                    const deviceId = message.client?.id || 'unknown'
+                    const logContent = `topic=${message.topic} payload=${message.payload}`
+                    writeLog(deviceId, 'mqtt', logContent, message.client?.id || '')
                 }
             })
 
@@ -1405,6 +1468,66 @@ ipcMain.handle('serial-send', async (_event, { data, hex }: { data: string; hex:
     }
 })
 
+
+// =================== 日志查询 IPC ===================
+
+// 获取日志日期列表
+ipcMain.handle('get-log-dates', async () => {
+    try {
+        const dir = getLogsDir()
+        if (!fs.existsSync(dir)) return []
+        return fs.readdirSync(dir).filter(f => {
+            const fullPath = path.join(dir, f)
+            return fs.statSync(fullPath).isDirectory()
+        }).sort().reverse()
+    } catch {
+        return []
+    }
+})
+
+// 获取某日期的设备列表（含名称）
+ipcMain.handle('get-log-devices', async (_event, date: string) => {
+    try {
+        const dateDir = path.join(getLogsDir(), date)
+        if (!fs.existsSync(dateDir)) return []
+        return fs.readdirSync(dateDir).filter(f => {
+            return fs.statSync(path.join(dateDir, f)).isDirectory()
+        }).sort().map(dirName => {
+            let name = ''
+            try {
+                const infoFile = path.join(dateDir, dirName, 'device_info.txt')
+                if (fs.existsSync(infoFile)) {
+                    name = fs.readFileSync(infoFile, 'utf-8').trim()
+                }
+            } catch { /* ignore */ }
+            return { id: dirName, name: name || dirName }
+        })
+    } catch {
+        return []
+    }
+})
+
+// 获取某设备下的日志文件列表（udp.log / mqtt.log）
+ipcMain.handle('get-log-files', async (_event, { date, deviceId }: { date: string; deviceId: string }) => {
+    try {
+        const deviceDir = path.join(getLogsDir(), date, deviceId)
+        if (!fs.existsSync(deviceDir)) return []
+        return fs.readdirSync(deviceDir).filter(f => f.endsWith('.log')).sort()
+    } catch {
+        return []
+    }
+})
+
+// 读取日志文件内容
+ipcMain.handle('read-log-file', async (_event, { date, deviceId, protocol }: { date: string; deviceId: string; protocol: string }) => {
+    try {
+        const logFile = path.join(getLogsDir(), date, deviceId, `${protocol}.log`)
+        if (!fs.existsSync(logFile)) return ''
+        return fs.readFileSync(logFile, 'utf-8')
+    } catch {
+        return ''
+    }
+})
 
 // =================== 应用生命周期 ===================
 
