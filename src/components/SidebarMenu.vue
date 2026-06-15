@@ -27,6 +27,10 @@
           <el-icon><Monitor /></el-icon>
           <template #title>设备列表</template>
         </el-menu-item>
+        <el-menu-item index="/upgrade">
+          <el-icon><UploadFilled /></el-icon>
+          <template #title>固件升级</template>
+        </el-menu-item>
         <el-menu-item index="/resource">
           <el-icon><TrendCharts /></el-icon>
           <template #title>设备统计</template>
@@ -74,7 +78,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Expand, Fold, Monitor, TrendCharts, Odometer, View, Place, Connection, Document, Position, SetUp } from '@element-plus/icons-vue'
+import { Expand, Fold, Monitor, TrendCharts, Odometer, View, Place, Connection, Document, Position, SetUp, UploadFilled } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()

@@ -393,8 +393,12 @@ export class UDPServer extends EventEmitter {
             // @ts-ignore
             for (const [id, device] of this.devices.entries()) {
                 if (device.lastSeen && typeof device.lastSeen === 'number') {
-                    if (now - device.lastSeen > this.deviceTimeout) {
-                        console.log(`[TIMEOUT] 设备离线: ${id} (${device.ip})`);
+                    // 超时阈值 = heart_interval × 5（最少15秒，最多60秒）
+                    // 避免WiFi设备因偶尔丢包被误判离线
+                    const intervalSec = device.heart_interval || 5
+                    const timeout = Math.max(15000, Math.min(60000, intervalSec * 5 * 1000))
+                    if (now - device.lastSeen > timeout) {
+                        console.log(`[TIMEOUT] 设备离线: ${id} (${device.ip}), 心跳间隔=${intervalSec}s, 超时=${timeout/1000}s`);
                         this.devices.delete(id);
                         changed = true;
                         this.emit('device-offline', id);

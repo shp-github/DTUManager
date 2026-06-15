@@ -9,6 +9,7 @@ import LocationInfo from './views/LocationInfo.vue'
 import DeviceResource from './views/DeviceResource.vue'
 import NetworkTools from './views/NetworkTools.vue'
 import SerialTools from './views/SerialTools.vue'
+import UpgradeView from './views/UpgradeView.vue'
 
 const routes = [
     { path: '/', redirect: '/devices' },
@@ -36,6 +37,7 @@ const routes = [
     { path: '/device-resource', name: 'DeviceResource', component: DeviceResource },
     { path: '/network-tools', name: 'NetworkTools', component: NetworkTools },
     { path: '/serial-tools', name: 'SerialTools', component: SerialTools },
+    { path: '/upgrade', name: 'UpgradeView', component: UpgradeView },
 ]
 
 const router = createRouter({
