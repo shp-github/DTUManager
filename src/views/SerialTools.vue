@@ -27,6 +27,7 @@ const sendHex = ref(true)
 const logs = ref<LogEntry[]>([])
 const autoScroll = ref(true)
 const terminalRef = ref<HTMLDivElement | null>(null)
+const receiveHex = ref(false)  // 接收显示模式：true=HEX, false=ASCII（默认ASCII）
 let logId = 0
 
 const baudRates = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600]
@@ -188,7 +189,6 @@ const sendData = async () => {
     if (result.success) {
       const display = sendHex.value ? formatHex(data) : data
       addLog('send', display)
-      sendInput.value = ''
     } else {
       addLog('system', `发送失败: ${result.error}`)
     }
@@ -203,13 +203,28 @@ const clearLogs = () => {
   logId = 0
 }
 
-// 接收串口数据（preload 的 on 已剥离 event，第一个参数就是数据）
-const handleSerialData = (data: any) => {
-  if (sendHex.value && data.hex) {
-    addLog('receive', formatHex(data.hex))
-  } else {
-    addLog('receive', data.data || data)
+// 接收串口数据
+const handleSerialData = (_event: any, data: any) => {
+  // 调试：打印实际接收到的数据
+  console.log('[SerialTools] raw data:', data)
+
+  // 系统消息（hex 为空字符串或 null）
+  if (data && (data.hex === '' || data.hex == null)) {
+    const msg = data.data || ''
+    if (msg) addLog('system', msg)
+    return
   }
+
+  // 数据消息
+  const hexStr = data && data.hex ? data.hex : ''
+  let display = ''
+  if (receiveHex.value) {
+    display = formatHex(hexStr)
+  } else {
+    const raw = data && data.data ? data.data : ''
+    display = String(raw).replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F]/g, '.')
+  }
+  addLog('receive', display)
 }
 
 onMounted(() => {
@@ -254,6 +269,15 @@ onBeforeUnmount(() => {
             <el-checkbox v-model="autoScroll" label="自动滚动" size="small" />
           </div>
         </el-card>
+
+        <!-- 接收显示模式切换 -->
+        <div class="receive-mode-bar">
+          <el-radio-group v-model="receiveHex" size="small">
+            <el-radio-button :value="true">HEX</el-radio-button>
+            <el-radio-button :value="false">ASCII</el-radio-button>
+          </el-radio-group>
+          <span class="receive-mode-hint">{{ receiveHex ? '十六进制显示' : 'ASCII 显示' }}</span>
+        </div>
 
         <!-- 终端 -->
         <div class="terminal" ref="terminalRef" @mousedown.prevent>
@@ -405,6 +429,21 @@ onBeforeUnmount(() => {
 .send-bar :deep(.el-checkbox__label) { color: #d4d4d4; }
 .send-bar :deep(.el-input__wrapper) { background: #3c3c3c; box-shadow: none; }
 .send-bar :deep(.el-input__inner) { color: #d4d4d4; }
+
+/* 接收显示模式切换栏 */
+.receive-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: #252526;
+  border-bottom: 1px solid #333;
+}
+
+.receive-mode-hint {
+  font-size: 12px;
+  color: #909399;
+}
 
 /* Modbus 面板 */
 .modbus-card {

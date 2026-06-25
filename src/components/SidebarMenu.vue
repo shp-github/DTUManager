@@ -1,4 +1,4 @@
-<template>
+ <template>
   <el-container style="height: 100vh; overflow: hidden;">
     <!-- 左侧菜单 -->
     <el-aside :width="asideWidth" style="background-color: #001529; color: #fff; transition: width 0.3s;">
@@ -58,7 +58,7 @@
         </el-menu-item>
         <el-menu-item index="/log">
           <el-icon><Document /></el-icon>
-          <template #title>日志</template>
+          <template #title>日志管理</template>
         </el-menu-item>
         <el-menu-item index="/local-info">
           <el-icon><Place /></el-icon>
@@ -92,7 +92,7 @@ const toggleCollapse = () => {
 
 // 计算侧边栏宽度
 const asideWidth = computed(() => {
-  return isCollapsed.value ? '64px' : '200px'
+  return isCollapsed.value ? '64px' : '240px'
 })
 
 // 计算主内容区域样式
@@ -122,13 +122,13 @@ watch(
 .el-menu-vertical-demo {
   height: 100%;
   border-right: 0;
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 700;
   overflow: hidden; /* 防止菜单出现滚动条 */
 }
 
 .el-menu-vertical-demo:not(.el-menu--collapse) {
-  width: 200px;
+  width: 240px;
 }
 
 .el-menu-vertical-demo .el-menu-item {
@@ -138,8 +138,8 @@ watch(
 }
 
 .el-menu-vertical-demo .el-sub-menu__title {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 700;
   overflow: hidden; /* 防止子菜单标题出现滚动条 */
 }
 

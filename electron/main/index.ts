@@ -982,6 +982,35 @@ ipcMain.handle('get-system-info', async () => {
         }
     }
 
+    // 获取磁盘信息
+    const disks: { path: string; total: number; used: number; free: number; usage: number }[] = []
+    try {
+        const path = require('path')
+        const fs = require('fs')
+        // Windows 获取所有盘符，Linux/macOS 获取根目录
+        const platform = os.platform()
+        const checkPaths = platform === 'win32'
+            ? 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(l => `${l}:\\`).filter((p: string) => {
+                try { fs.statfsSync(p); return true } catch { return false }
+            })
+            : ['/']
+        for (const diskPath of checkPaths) {
+            try {
+                const stats = fs.statfsSync(diskPath)
+                const total = stats.bsize * stats.blocks
+                const free = stats.bsize * stats.bavail
+                const used = total - free
+                disks.push({
+                    path: diskPath,
+                    total,
+                    used,
+                    free,
+                    usage: total > 0 ? parseFloat(((used / total) * 100).toFixed(1)) : 0
+                })
+            } catch { /* ignore */ }
+        }
+    } catch { /* ignore */ }
+
     return {
         hostname: os.hostname(),
         platform: os.platform(),
@@ -997,6 +1026,7 @@ ipcMain.handle('get-system-info', async () => {
         memoryUsage: parseFloat(((usedMem / totalMem) * 100).toFixed(1)),
         uptime: os.uptime(),
         networks,
+        disks,
         nodeVersion: process.versions.node,
         electronVersion: process.versions.electron,
         chromeVersion: process.versions.chrome,

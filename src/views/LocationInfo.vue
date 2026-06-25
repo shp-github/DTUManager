@@ -9,6 +9,14 @@ interface NetworkInfo {
   netmask: string
 }
 
+interface DiskInfo {
+  path: string
+  total: number
+  used: number
+  free: number
+  usage: number
+}
+
 interface SystemInfo {
   hostname: string
   platform: string
@@ -24,6 +32,7 @@ interface SystemInfo {
   memoryUsage: number
   uptime: number
   networks: NetworkInfo[]
+  disks: DiskInfo[]
   nodeVersion: string
   electronVersion: string
   chromeVersion: string
@@ -78,14 +87,22 @@ const fetchSystemInfo = async () => {
   }
 }
 
-// 获取平台显示名
-const getPlatformName = (platform: string) => {
+// 获取操作系统友好名称
+const getOSDisplayName = (platform: string, release: string) => {
+  if (platform === 'win32') {
+    // Windows 10/11 根据 build 号区分：build >= 22000 为 Windows 11
+    const match = release.match(/^(\d+)\.(\d+)\.(\d+)/)
+    if (match) {
+      const build = parseInt(match[3], 10)
+      return build >= 22000 ? `Windows 11 (${release})` : `Windows 10 (${release})`
+    }
+    return `Windows ${release}`
+  }
   const map: Record<string, string> = {
-    win32: 'Windows',
     darwin: 'macOS',
     linux: 'Linux'
   }
-  return map[platform] || platform
+  return `${map[platform] || platform} ${release}`
 }
 
 onMounted(() => {
@@ -121,7 +138,7 @@ onBeforeUnmount(() => {
           </div>
           <div class="info-item">
             <span class="label">操作系统</span>
-            <span class="value">{{ getPlatformName(systemInfo.platform) }} {{ systemInfo.osRelease }}</span>
+            <span class="value">{{ getOSDisplayName(systemInfo.platform, systemInfo.osRelease) }}</span>
           </div>
           <div class="info-item">
             <span class="label">架构</span>
@@ -196,6 +213,25 @@ onBeforeUnmount(() => {
         </div>
       </el-card>
 
+      <!-- 磁盘信息卡片 -->
+      <el-card class="info-card" shadow="hover">
+        <template #header>
+          <div class="card-header">
+            <el-icon><Monitor /></el-icon>
+            <span>磁盘信息</span>
+          </div>
+        </template>
+        <div class="info-list">
+          <div class="info-item" v-for="disk in systemInfo.disks" :key="disk.path">
+            <span class="label">{{ disk.path }} ({{ formatBytes(disk.total) }})</span>
+            <div class="value progress-value">
+              <el-progress :percentage="disk.usage" :stroke-width="16" :text-inside="true"
+                :color="disk.usage > 80 ? '#f56c6c' : disk.usage > 50 ? '#e6a23c' : '#67c23a'" />
+            </div>
+          </div>
+        </div>
+      </el-card>
+
       <!-- 网络信息卡片 -->
       <el-card class="info-card network-card" shadow="hover">
         <template #header>
@@ -212,36 +248,13 @@ onBeforeUnmount(() => {
         </el-table>
       </el-card>
 
-      <!-- 运行环境卡片 -->
-      <el-card class="info-card" shadow="hover">
-        <template #header>
-          <div class="card-header">
-            <el-icon><Monitor /></el-icon>
-            <span>运行环境</span>
-          </div>
-        </template>
-        <div class="info-list">
-          <div class="info-item">
-            <span class="label">Electron</span>
-            <span class="value">v{{ systemInfo.electronVersion }}</span>
-          </div>
-          <div class="info-item">
-            <span class="label">Node.js</span>
-            <span class="value">v{{ systemInfo.nodeVersion }}</span>
-          </div>
-          <div class="info-item">
-            <span class="label">Chrome</span>
-            <span class="value">v{{ systemInfo.chromeVersion }}</span>
-          </div>
-        </div>
-      </el-card>
     </div>
   </div>
 </template>
 
 <style scoped>
 .location-info {
-  padding: 20px;
+  padding: 16px 20px;
   background: #f5f7fa;
   min-height: 100%;
 }
@@ -250,17 +263,21 @@ onBeforeUnmount(() => {
   font-size: 22px;
   font-weight: 700;
   color: #333;
-  margin: 0 0 20px 0;
+  margin: 0 0 16px 0;
 }
 
 .info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
 }
 
 .info-card {
   border-radius: 8px;
+}
+
+.info-card :deep(.el-card__body) {
+  padding: 14px 18px;
 }
 
 .network-card {
@@ -279,7 +296,7 @@ onBeforeUnmount(() => {
 .info-list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 
 .info-item {
@@ -318,7 +335,7 @@ onBeforeUnmount(() => {
 
 .info-item .value :deep(.el-progress) {
   width: 100%;
-  max-width: 200px;
+  max-width: 180px;
 }
 
 .info-item .progress-value {
@@ -329,8 +346,12 @@ onBeforeUnmount(() => {
 }
 
 .info-item .progress-value :deep(.el-progress) {
-  width: 200px;
-  min-width: 200px;
+  width: 180px;
+  min-width: 180px;
+}
+
+.info-item .progress-value :deep(.el-progress-bar__innerText) {
+  font-size: 12px !important;
 }
 
 .info-item .progress-value :deep(.el-progress-bar) {
@@ -339,5 +360,13 @@ onBeforeUnmount(() => {
 
 .info-item .progress-value :deep(.el-progress-bar__outer) {
   display: block;
+}
+
+/* 网络表格字体 */
+.network-card :deep(.el-table) {
+  font-size: 13px;
+}
+.network-card :deep(.el-table th) {
+  font-size: 13px;
 }
 </style>
