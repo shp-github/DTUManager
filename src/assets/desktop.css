@@ -1,0 +1,470 @@
+/* ============================================
+   Desktop-Style Enhancement — Lumina UI Inspired
+   ============================================ */
+
+/* -------- 全局 CSS 变量：深度与材质 -------- */
+:root {
+  /* 阴影层级 */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-sm: 0 2px 6px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 14px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+  --shadow-lg: 0 8px 28px rgba(0,0,0,0.10), 0 4px 12px rgba(0,0,0,0.05);
+  --shadow-xl: 0 16px 48px rgba(0,0,0,0.12), 0 6px 20px rgba(0,0,0,0.06);
+
+  /* 圆角 */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+
+  /* 毛玻璃材质 */
+  --glass-bg: rgba(255,255,255,0.65);
+  --glass-border: rgba(255,255,255,0.5);
+  --glass-blur: 12px;
+
+  /* 过渡 */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+
+  /* 内容区微渐变 */
+  --content-gradient: linear-gradient(180deg, #f8f9fb 0%, #f0f2f5 100%);
+}
+
+/* -------- 暗夜模式变量覆盖 -------- */
+html.dark {
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.20);
+  --shadow-sm: 0 2px 6px rgba(0,0,0,0.30), 0 1px 3px rgba(0,0,0,0.20);
+  --shadow-md: 0 4px 14px rgba(0,0,0,0.40), 0 2px 6px rgba(0,0,0,0.25);
+  --shadow-lg: 0 8px 28px rgba(0,0,0,0.50), 0 4px 12px rgba(0,0,0,0.30);
+  --shadow-xl: 0 16px 48px rgba(0,0,0,0.55), 0 6px 20px rgba(0,0,0,0.35);
+
+  --glass-bg: rgba(30,30,30,0.70);
+  --glass-border: rgba(255,255,255,0.06);
+
+  --content-gradient: linear-gradient(180deg, #161616 0%, #121212 100%);
+}
+
+/* -------- 清新绿主题变量覆盖 -------- */
+html.green {
+  --content-gradient: linear-gradient(180deg, #f0fdf4 0%, #ecfdf5 100%);
+}
+
+/* ============================================
+   全局基础样式
+   ============================================ */
+
+/* 字体平滑渲染（桌面感关键） */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* 全局选中颜色 */
+::selection {
+  background: rgba(64, 158, 255, 0.25);
+  color: inherit;
+}
+
+html.dark ::selection {
+  background: rgba(88, 166, 255, 0.30);
+}
+
+/* ============================================
+   现代化滚动条
+   ============================================ */
+
+/* 恢复并美化滚动条 */
+::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+  transition: background var(--duration-fast);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.28);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* Firefox 滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,0,0,0.15) transparent;
+}
+
+html.dark * {
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+
+/* ============================================
+   玻璃态通用类
+   ============================================ */
+
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+}
+
+.glass-panel--strong {
+  background: rgba(255,255,255,0.78);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.6);
+}
+
+html.dark .glass-panel--strong {
+  background: rgba(22,22,22,0.82);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ============================================
+   卡片深度层级
+   ============================================ */
+
+.elevation-0 { box-shadow: none; }
+.elevation-1 { box-shadow: var(--shadow-sm); }
+.elevation-2 { box-shadow: var(--shadow-md); }
+.elevation-3 { box-shadow: var(--shadow-lg); }
+.elevation-4 { box-shadow: var(--shadow-xl); }
+
+/* ============================================
+   全局 Element Plus 组件美化
+   ============================================ */
+
+/* 卡片 */
+.el-card {
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--duration-normal) var(--ease-out-expo),
+              transform var(--duration-normal) var(--ease-out-expo);
+  overflow: hidden;
+}
+
+.el-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* 按钮 */
+.el-button {
+  border-radius: var(--radius-sm) !important;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+  font-weight: 500;
+}
+
+.el-button:active {
+  transform: scale(0.97);
+}
+
+.el-button--primary {
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.30);
+}
+
+.el-button--primary:hover {
+  box-shadow: 0 4px 16px rgba(64, 158, 255, 0.40);
+  transform: translateY(-1px);
+}
+
+/* 输入框 */
+.el-input__wrapper {
+  border-radius: var(--radius-sm) !important;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+  box-shadow: var(--shadow-xs);
+}
+
+.el-input__wrapper:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+.el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--el-color-primary) !important;
+}
+
+/* 表格 */
+.el-table {
+  border-radius: var(--radius-lg) !important;
+  overflow: hidden;
+}
+
+.el-table th.el-table__cell {
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+/* 对话框 */
+.el-dialog {
+  border-radius: var(--radius-xl) !important;
+  box-shadow: var(--shadow-xl);
+}
+
+.el-dialog__header {
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  padding: 20px 24px 16px;
+}
+
+html.dark .el-dialog__header {
+  border-bottom-color: rgba(255,255,255,0.06);
+}
+
+.el-dialog__body {
+  padding: 20px 24px;
+}
+
+/* 下拉菜单 */
+.el-dropdown-menu {
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-lg) !important;
+  border: 1px solid var(--glass-border) !important;
+  padding: 4px;
+}
+
+html.dark .el-dropdown-menu {
+  background: rgba(30,30,30,0.95) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.el-dropdown-menu__item {
+  border-radius: var(--radius-sm);
+  margin: 2px 4px;
+  transition: all var(--duration-fast);
+}
+
+/* Tag */
+.el-tag {
+  border-radius: var(--radius-xs);
+  font-weight: 500;
+}
+
+/* Radio Button */
+.el-radio-button__inner {
+  transition: all var(--duration-fast) var(--ease-out-expo);
+}
+
+/* Alert */
+.el-alert {
+  border-radius: var(--radius-md);
+}
+
+/* ============================================
+   页面内容区通用美化
+   ============================================ */
+
+/* 搜索栏/工具栏统一风格 */
+.device-search,
+.search-bar,
+.tool-bar {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--glass-border);
+}
+
+/* 统计卡片 */
+.stat-card {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--duration-normal) var(--ease-out-expo);
+}
+
+.stat-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+/* ============================================
+   页面切换过渡动画
+   ============================================ */
+
+.page-fade-enter-active {
+  transition: all var(--duration-slow) var(--ease-out-expo);
+}
+
+.page-fade-leave-active {
+  transition: all 200ms cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+.page-fade-enter-from {
+  opacity: 0;
+  transform: translateY(12px) scale(0.985);
+}
+
+.page-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.99);
+}
+
+/* ============================================
+   内容区微渐变背景
+   ============================================ */
+
+.content-area {
+  background: var(--content-gradient);
+}
+
+/* ============================================
+   Hover 微交互工具类
+   ============================================ */
+
+.hover-lift {
+  transition: transform var(--duration-normal) var(--ease-out-expo),
+              box-shadow var(--duration-normal) var(--ease-out-expo);
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 20px rgba(64, 158, 255, 0.15);
+}
+
+html.dark .hover-glow:hover {
+  box-shadow: 0 0 24px rgba(88, 166, 255, 0.18);
+}
+
+/* ============================================
+   Lumina 发光按钮（全局共享）
+   ============================================ */
+
+.lumina-btn {
+  position: relative;
+  padding: 8px 20px;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  box-shadow: 0 2px 12px rgba(59,130,246,0.35), 0 0 30px rgba(59,130,246,0.1);
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+}
+.lumina-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.lumina-btn:hover {
+  transform: translateY(-2px);
+  z-index: 10;
+  box-shadow: 0 6px 24px rgba(59,130,246,0.5), 0 0 50px rgba(59,130,246,0.2);
+}
+.lumina-btn:hover::before { opacity: 1; }
+.lumina-btn:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+}
+.lumina-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* 警告色 */
+.lumina-btn--warning {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  box-shadow: 0 2px 12px rgba(245,158,11,0.35), 0 0 30px rgba(245,158,11,0.1);
+}
+.lumina-btn--warning:hover {
+  box-shadow: 0 6px 24px rgba(245,158,11,0.5), 0 0 50px rgba(245,158,11,0.2);
+}
+
+/* 成功色 */
+.lumina-btn--success {
+  background: linear-gradient(135deg, #10b981, #059669);
+  box-shadow: 0 2px 12px rgba(16,185,129,0.35), 0 0 30px rgba(16,185,129,0.1);
+}
+.lumina-btn--success:hover {
+  box-shadow: 0 6px 24px rgba(16,185,129,0.5), 0 0 50px rgba(16,185,129,0.2);
+}
+
+/* 小尺寸 */
+.lumina-btn--sm {
+  padding: 5px 14px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+
+/* 超小尺寸 */
+.lumina-btn--xs {
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: 6px;
+}
+
+/* 幽灵按钮 */
+.lumina-btn--ghost {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #a0aec0;
+  box-shadow: none;
+}
+.lumina-btn--ghost:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.25);
+  color: #e0e0e0;
+  transform: translateY(-1px);
+  z-index: 10;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+
+/* 输入框 append 按钮 */
+.lumina-btn--append {
+  padding: 0 16px;
+  border-radius: 0 8px 8px 0;
+  height: 100%;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  box-shadow: 0 0 10px rgba(59,130,246,0.2);
+}
+
+/* 加载旋转器 */
+.lumina-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: lumina-spin 0.6s linear infinite;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+@keyframes lumina-spin {
+  to { transform: rotate(360deg); }
+}

@@ -115,7 +115,7 @@ const toggleCollapse = () => {
 
 // 计算侧边栏宽度
 const asideWidth = computed(() => {
-  return isCollapsed.value ? '64px' : '180px'
+  return isCollapsed.value ? '80px' : '180px'
 })
 
 // 计算主内容区域样式
@@ -307,5 +307,22 @@ watch(
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
+}
+</style>
+
+<!-- 折叠态全局样式（非scoped，确保覆盖Element Plus默认样式） -->
+<style>
+/* 折叠时菜单项：去左右margin换padding，背景覆盖整行，内容居中不变 */
+.el-menu-vertical-demo.el-menu--collapse .el-menu-item {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  border-radius: 0 !important;
+}
+
+/* 折叠时hover去掉偏移 */
+.el-menu-vertical-demo.el-menu--collapse .el-menu-item:hover {
+  transform: none !important;
 }
 </style>

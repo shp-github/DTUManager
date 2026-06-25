@@ -1,0 +1,613 @@
+/* ========== 默认蓝主题 ========== */
+:root {
+  --theme-name: '默认蓝';
+  --sidebar-bg: #001529;
+  --sidebar-bg-dark: #002140;
+  --sidebar-text: #fff;
+  --sidebar-text-active: #409EFF;
+  --sidebar-hover: #003366;
+  --main-bg: #f0f2f5;
+  --page-bg: #f5f7fa;
+
+  /* 桌面风格：标题栏 */
+  --titlebar-bg: #001c38;
+  --titlebar-bottom-line: rgba(255,255,255,0.08);
+
+  /* 桌面风格：侧边栏分隔 */
+  --sidebar-divider: rgba(255,255,255,0.08);
+  --sidebar-active-indicator: #409EFF;
+}
+
+/* ========== 亮色主题：设备列表页覆盖（默认蓝 & 清新绿共用） ========== */
+html:not(.dark) .dtu-list-container {
+  background: #f0f2f5 !important;
+}
+html:not(.dark) .dtu-list-container::before {
+  display: none !important;
+}
+html:not(.dark) .device-search {
+  background: rgba(255,255,255,0.85) !important;
+  border-color: rgba(0,0,0,0.06) !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
+}
+html:not(.dark) .device-search:focus-within {
+  border-color: var(--el-color-primary-light-3) !important;
+  box-shadow: 0 2px 20px rgba(0,0,0,0.08) !important;
+}
+html:not(.dark) .device-search .el-input__wrapper {
+  background: rgba(0,0,0,0.03) !important;
+  border-color: rgba(0,0,0,0.1) !important;
+}
+html:not(.dark) .device-search .el-input__inner {
+  color: #303133 !important;
+}
+html:not(.dark) .device-search .el-input__inner::placeholder {
+  color: #c0c4cc !important;
+}
+html:not(.dark) .device-search .el-radio-button__inner {
+  background: #fff !important;
+  border-color: #dcdfe6 !important;
+  color: #606266 !important;
+}
+html:not(.dark) .device-search .el-radio-button__original-radio:checked + .el-radio-button__inner {
+  background: var(--el-color-primary-light-9) !important;
+  border-color: var(--el-color-primary) !important;
+  color: var(--el-color-primary) !important;
+  box-shadow: none !important;
+}
+html:not(.dark) .device-count {
+  color: #303133 !important;
+}
+/* 亮色表格 */
+html:not(.dark) .dtu-list-container .el-table {
+  background: #fff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-color: #ebeef5 !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
+}
+html:not(.dark) .el-table th.el-table__cell {
+  background: #f5f7fa !important;
+  color: #303133 !important;
+  border-bottom-color: #ebeef5 !important;
+}
+html:not(.dark) .el-table td.el-table__cell {
+  background: #fff !important;
+  color: #606266 !important;
+  border-bottom-color: #ebeef5 !important;
+}
+html:not(.dark) .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+  background: #fafafa !important;
+}
+html:not(.dark) .el-table__body tr:hover > td {
+  background: var(--el-color-primary-light-9) !important;
+  box-shadow: inset 3px 0 0 var(--el-color-primary) !important;
+}
+html:not(.dark) .el-table .el-button--primary.el-button--small {
+  background: var(--el-color-primary) !important;
+  box-shadow: none !important;
+}
+html:not(.dark) .el-table .el-button--warning.el-button--small {
+  background: #e6a23c !important;
+  box-shadow: none !important;
+}
+html:not(.dark) .el-table .el-button--success.el-button--small {
+  background: #67c23a !important;
+  box-shadow: none !important;
+}
+html:not(.dark) .el-table .el-button--small:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+/* 亮色对话框 */
+html:not(.dark) .el-dialog {
+  background: #fff !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-color: #ebeef5 !important;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.15) !important;
+}
+html:not(.dark) .el-dialog__header {
+  border-bottom-color: #ebeef5 !important;
+}
+html:not(.dark) .el-dialog__title {
+  color: #303133 !important;
+}
+html:not(.dark) .el-dialog__body {
+  color: #606266 !important;
+}
+html:not(.dark) .upgrade-device-info {
+  background: var(--el-color-primary-light-9) !important;
+  border-color: var(--el-color-primary-light-7) !important;
+}
+html:not(.dark) .upgrade-device-info p {
+  color: #303133 !important;
+}
+html:not(.dark) .file-info {
+  background: #f0f9eb !important;
+  border-color: #e1f3d8 !important;
+}
+html:not(.dark) .file-info p {
+  color: #303133 !important;
+}
+html:not(.dark) .terminal-controls {
+  border-bottom-color: #ebeef5 !important;
+}
+html:not(.dark) .terminal-controls .device-info {
+  color: #303133 !important;
+}
+html:not(.dark) .terminal-output {
+  background: #f8f9fa !important;
+  border-color: #e9ecef !important;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.04) !important;
+}
+html:not(.dark) .signal-na {
+  color: #c0c4cc !important;
+}
+/* 亮色对话框按钮 */
+html:not(.dark) .el-dialog .lumina-btn {
+  background: var(--el-color-primary) !important;
+  box-shadow: none !important;
+  color: #fff !important;
+}
+html:not(.dark) .el-dialog .lumina-btn:hover {
+  background: var(--el-color-primary-light-3) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+html:not(.dark) .el-dialog .lumina-btn--ghost {
+  background: transparent !important;
+  border: 1px solid var(--el-border-color) !important;
+  color: var(--el-text-color-regular) !important;
+}
+html:not(.dark) .el-dialog .lumina-btn--ghost:hover {
+  background: var(--el-fill-color-light) !important;
+  border-color: var(--el-color-primary) !important;
+  color: var(--el-color-primary) !important;
+}
+
+/* ========== 暗夜主题 ========== */
+html.dark {
+  --theme-name: '暗夜模式';
+  color-scheme: dark;
+
+  /* Element Plus 暗色变量 */
+  --el-bg-color: #141414;
+  --el-bg-color-overlay: #1d1e1f;
+  --el-text-color-primary: #ffffff;
+  --el-text-color-regular: #e0e0e0;
+  --el-text-color-secondary: #b0b0b0;
+  --el-border-color: #404040;
+  --el-border-color-light: #363637;
+  --el-border-color-lighter: #2e2e2f;
+  --el-fill-color: #262727;
+  --el-fill-color-light: #2e2e2f;
+  --el-fill-color-blank: transparent;
+
+  /* 页面背景 */
+  --app-bg: #121212;
+  --app-main-bg: #1a1a1a;
+  --main-bg: #121212;
+  --page-bg: #121212;
+
+  /* 侧边栏 */
+  --sidebar-bg: #0d1117;
+  --sidebar-bg-dark: #161b22;
+  --sidebar-text: #ffffff;
+  --sidebar-text-active: #58a6ff;
+  --sidebar-hover: #1f2937;
+
+  /* 桌面风格：标题栏 */
+  --titlebar-bg: #0a0e14;
+  --titlebar-bottom-line: rgba(255,255,255,0.06);
+
+  /* 桌面风格：侧边栏分隔 */
+  --sidebar-divider: rgba(255,255,255,0.06);
+  --sidebar-active-indicator: #58a6ff;
+}
+
+html.dark body {
+  background-color: #121212;
+  color: #e0e0e0;
+}
+
+/* 暗夜模式：Element Plus 组件覆盖 */
+html.dark .el-card {
+  background-color: #1e1e1e !important;
+  border-color: #333 !important;
+}
+
+html.dark .el-card__header {
+  border-bottom-color: #333 !important;
+}
+
+html.dark .el-table {
+  --el-table-tr-bg-color: #1e1e1e;
+  --el-table-header-bg-color: #252525;
+}
+
+html.dark .el-table th {
+  background-color: #252525 !important;
+  color: #e0e0e0 !important;
+}
+
+html.dark .el-table td {
+  background-color: #1e1e1e !important;
+  color: #e0e0e0 !important;
+}
+
+html.dark .el-table--striped .el-table__body tr.el-table__row--striped td {
+  background-color: #252525 !important;
+}
+
+html.dark .el-input__wrapper {
+  background-color: #2a2a2a !important;
+  box-shadow: none !important;
+}
+
+html.dark .el-input__inner {
+  color: #e0e0e0 !important;
+}
+
+html.dark .page-title {
+  color: #ffffff !important;
+}
+
+html.dark .card-header {
+  color: #ffffff !important;
+}
+
+html.dark .info-item .label {
+  color: #b0b0b0 !important;
+}
+
+html.dark .info-item .value {
+  color: #e0e0e0 !important;
+}
+
+html.dark .terminal {
+  background: #161616 !important;
+}
+
+html.dark .send-bar,
+html.dark .timer-bar,
+html.dark .receive-mode-bar {
+  background: #1a1a1a !important;
+}
+
+html.dark .el-tag {
+  border-color: #444 !important;
+}
+
+html.dark .hex-preview {
+  background: #2a2a2a !important;
+  color: #86efac !important;
+}
+
+/* 暗夜模式：设备列表页 */
+html.dark .device-search {
+  background: rgba(30,30,30,0.75) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+}
+
+html.dark .dtu-list-container .el-table {
+  background: rgba(30,30,30,0.75) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.3) !important;
+}
+
+html.dark .dtu-list-container p {
+  color: #e0e0e0 !important;
+}
+
+/* 表格行 hover */
+html.dark .el-table__body tr:hover > td {
+  background: var(--el-fill-color-light) !important;
+  box-shadow: inset 3px 0 0 var(--el-color-primary) !important;
+}
+
+/* 暗夜模式：固件升级页面 */
+html.dark .upgrade-container .top-bar,
+html.dark .upgrade-container .left-panel,
+html.dark .upgrade-container .right-panel {
+  background: #1e1e1e !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+}
+
+html.dark .upgrade-container .page-title,
+html.dark .upgrade-container .panel-label,
+html.dark .upgrade-container .device-name,
+html.dark .upgrade-container .info-row .value {
+  color: #e0e0e0 !important;
+}
+
+html.dark .upgrade-container .device-card {
+  background: #1e1e1e !important;
+  border-color: #333 !important;
+}
+
+html.dark .upgrade-container .device-card:hover {
+  border-color: #58a6ff !important;
+  box-shadow: 0 4px 14px rgba(88,166,255,0.15) !important;
+}
+
+html.dark .upgrade-container .device-card.selected {
+  border-color: #238636 !important;
+  background: #0d3320 !important;
+}
+
+html.dark .upgrade-container .device-card.upgrading {
+  border-color: #d29922 !important;
+  background: #2a1f0a !important;
+}
+
+html.dark .upgrade-container .device-card.upgrade-success {
+  border-color: #238636 !important;
+  background: #0d3320 !important;
+}
+
+html.dark .upgrade-container .device-card.upgrade-error {
+  border-color: #da3633 !important;
+  background: #2a1215 !important;
+}
+
+html.dark .upgrade-container .card-header {
+  border-bottom-color: #333 !important;
+}
+
+html.dark .upgrade-container .info-row .label {
+  color: #8b949e !important;
+}
+
+html.dark .upgrade-container .file-selected-bar {
+  background: #0d3320 !important;
+  border-color: #238636 !important;
+}
+
+html.dark .upgrade-container .file-selected-bar .file-name {
+  color: #e0e0e0 !important;
+}
+
+/* 暗夜模式：设备资源页面 */
+html.dark .device-header {
+  background: #1e1e1e !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+}
+
+/* 暗夜模式：资源监控页面（设备统计） */
+html.dark .resource-monitor .stat-card {
+  background: #1e1e1e !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+}
+
+html.dark .resource-monitor .stat-value {
+  color: #e0e0e0 !important;
+}
+
+html.dark .resource-monitor .stat-label {
+  color: #8b949e !important;
+}
+
+html.dark .resource-monitor .page-title {
+  color: #ffffff !important;
+}
+
+html.dark .resource-monitor .card-title {
+  color: #e0e0e0 !important;
+}
+
+html.dark .resource-monitor .bar-label {
+  color: #8b949e !important;
+}
+
+html.dark .resource-monitor .bar-value {
+  color: #e0e0e0 !important;
+}
+
+html.dark .resource-monitor .bar-track {
+  background: #2a2a2a !important;
+}
+
+html.dark .resource-monitor .empty-chart {
+  color: #555 !important;
+}
+
+/* 设备运行状态卡片 */
+html.dark .resource-monitor .device-tile {
+  background: #1e1e1e !important;
+  border-color: #333 !important;
+}
+
+html.dark .resource-monitor .device-tile:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.30) !important;
+  border-color: #58a6ff !important;
+}
+
+html.dark .resource-monitor .tile-header {
+  border-bottom-color: #333 !important;
+}
+
+html.dark .resource-monitor .device-name {
+  color: #e0e0e0 !important;
+}
+
+html.dark .resource-monitor .tile-label {
+  color: #8b949e !important;
+}
+
+html.dark .resource-monitor .tile-value {
+  color: #e0e0e0 !important;
+}
+
+html.dark .stat-card {
+  background: #1e1e1e !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+}
+
+html.dark .stat-card-value,
+html.dark .device-id,
+html.dark .page-title,
+html.dark .card-title,
+html.dark .chip-name,
+html.dark .detail-value,
+html.dark .spec-value,
+html.dark .progress-value {
+  color: #e0e0e0 !important;
+}
+
+html.dark .stat-card-label,
+html.dark .device-ip,
+html.dark .client-id,
+html.dark .empty-text,
+html.dark .detail-label,
+html.dark .spec-label,
+html.dark .progress-label {
+  color: #8b949e !important;
+}
+
+html.dark .client-id {
+  background: #2a2a2a !important;
+}
+
+html.dark .empty-hint {
+  background: #2a2a2a !important;
+  color: #8b949e !important;
+}
+
+html.dark .spec-item {
+  background: #252525 !important;
+}
+
+html.dark .uptime-card .stat-card-icon { background: #1a2a3a !important; }
+html.dark .cpu-card .stat-card-icon { background: #1a2a1a !important; }
+html.dark .network-card .stat-card-icon { background: #2a241a !important; }
+html.dark .flash-card .stat-card-icon { background: #2a1a1a !important; }
+
+html.dark .device-resource .el-card {
+  background-color: #1e1e1e !important;
+  border-color: #333 !important;
+}
+
+html.dark .device-resource .el-card__header {
+  border-bottom-color: #333 !important;
+}
+
+html.dark .device-resource .el-card__body {
+  background-color: #1e1e1e !important;
+}
+
+html.dark .device-resource .chart-card {
+  background: #1e1e1e !important;
+}
+
+/* 暗夜模式：DHCP分配页面 */
+html.dark .loading-initial,
+html.dark .error-state,
+html.dark .modal-content,
+html.dark .interface-card,
+html.dark .status-panel,
+html.dark .status-stopped {
+  background: #1e1e1e !important;
+  color: #e0e0e0 !important;
+}
+
+html.dark .ip-config-panel,
+html.dark .config-edit-panel {
+  background: #252525 !important;
+}
+
+html.dark .modal-content h2,
+html.dark .modal-content h3,
+html.dark .ip-config-panel h3,
+html.dark .interface-header h4,
+html.dark .status-header h3 {
+  color: #e0e0e0 !important;
+}
+
+html.dark .modal-content p,
+html.dark .description p,
+html.dark .details .label,
+html.dark .hint,
+html.dark .form-group label,
+html.dark .detail-row .label,
+html.dark .stopped-description {
+  color: #8b949e !important;
+}
+
+html.dark .details .value,
+html.dark .detail-row .value {
+  color: #e0e0e0 !important;
+}
+
+html.dark .interface-card {
+  border-color: #333 !important;
+}
+
+html.dark .interface-card:hover {
+  background: #252525 !important;
+}
+
+html.dark .interface-card.selected {
+  background: #1a2a3a !important;
+  border-color: #58a6ff !important;
+}
+
+html.dark .close-btn {
+  background: #333 !important;
+  color: #e0e0e0 !important;
+}
+
+html.dark .close-btn:hover {
+  background: #444 !important;
+}
+
+html.dark .form-group input {
+  background: #2a2a2a !important;
+  border-color: #444 !important;
+  color: #e0e0e0 !important;
+}
+
+html.dark .form-group input:disabled {
+  background: #1a1a1a !important;
+}
+
+html.dark .config-summary {
+  background: #252525 !important;
+  color: #e0e0e0 !important;
+}
+
+html.dark .lease-item {
+  background: #252525 !important;
+  border-color: #333 !important;
+}
+
+/* ========== 清新绿主题 ========== */
+html.green {
+  --theme-name: '清新绿';
+  --el-color-primary: #16a34a;
+  --el-color-primary-light-3: #22c55e;
+  --el-color-primary-light-5: #4ade80;
+  --el-color-primary-light-7: #86efac;
+  --el-color-primary-light-8: #bbf7d0;
+  --el-color-primary-light-9: #dcfce7;
+  --el-color-primary-dark-2: #15803d;
+
+  /* 侧边栏 - 深绿配色 */
+  --sidebar-bg: #064e3b;
+  --sidebar-bg-dark: #047857;
+  --sidebar-text: #ecfdf5;
+  --sidebar-text-active: #4ade80;
+  --sidebar-hover: #065f46;
+  --titlebar-bg: #064e3b;
+
+  /* 桌面风格：标题栏 */
+  --titlebar-bottom-line: rgba(255,255,255,0.10);
+
+  /* 桌面风格：侧边栏分隔 */
+  --sidebar-divider: rgba(255,255,255,0.10);
+  --sidebar-active-indicator: #4ade80;
+}
