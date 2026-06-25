@@ -345,7 +345,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .serial-tools {
   padding: 16px;
-  background: #f5f7fa;
+  background: var(--page-bg);
   height: 100%;
   display: flex;
   flex-direction: column;

@@ -1,17 +1,6 @@
 <template>
   <div class="dtu-list-container">
 
-    <span style="
-        display: inline-block;
-        margin-bottom: 10px;
-        font-family: 'Microsoft YaHei', 'SimHei', '黑体', Arial, sans-serif;
-        font-size: 16px;
-        color: #ff0000;
-        font-weight: bold;
-    ">
-      注意：没有dhcp服务或者路由器的，需要手动启用dhcp服务
-    </span>
-
     <!-- 搜索 -->
     <div class="device-search">
       <el-input
@@ -936,7 +925,7 @@ onMounted(() => {
 <style scoped>
 .dtu-list-container {
   padding: 20px;
-  background: #f5f7fa;
+  background: var(--page-bg);
   height: 100vh;
   display: flex;
   flex-direction: column;

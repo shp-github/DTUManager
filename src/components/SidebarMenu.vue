@@ -1,7 +1,7 @@
  <template>
   <el-container style="height: 100vh; overflow: hidden;">
     <!-- 左侧菜单 -->
-    <el-aside :width="asideWidth" style="background-color: #001529; color: #fff; transition: width 0.3s;">
+    <el-aside :width="asideWidth" style="background-color: var(--sidebar-bg); color: var(--sidebar-text); transition: width 0.3s;">
       <!-- 折叠按钮 -->
       <div class="collapse-btn" @click="toggleCollapse">
         <el-icon :size="20">
@@ -17,9 +17,9 @@
           :collapse="isCollapsed"
           :collapse-transition="false"
           class="el-menu-vertical-demo"
-          background-color="#001529"
-          text-color="#fff"
-          active-text-color="#409EFF"
+          background-color="var(--sidebar-bg)"
+          text-color="var(--sidebar-text)"
+          active-text-color="var(--sidebar-text-active)"
           router
           @select="handleMenuSelect"
       >
@@ -66,10 +66,30 @@
         </el-menu-item>
 
       </el-menu>
+
+      <!-- 主题切换 -->
+      <div class="theme-switcher" v-if="!isCollapsed">
+        <div class="theme-title">主题设置</div>
+        <el-select v-model="currentTheme" @change="(val: string) => setTheme(val as ThemeType)" size="small" style="width: 100%">
+          <el-option v-for="t in themes" :key="t.value" :label="`${t.icon} ${t.label}`" :value="t.value" />
+        </el-select>
+      </div>
+      <div class="theme-switcher-collapsed" v-else>
+        <el-dropdown trigger="click" @command="(val: string) => setTheme(val as ThemeType)">
+          <el-icon :size="20" style="color: var(--sidebar-text); cursor: pointer;"><Setting /></el-icon>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item v-for="t in themes" :key="t.value" :command="t.value">
+                {{ t.icon }} {{ t.label }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
     </el-aside>
 
     <!-- 右侧内容 -->
-    <el-main :style="mainStyle" style="padding: 20px; background-color: #f5f5f5; overflow: auto; transition: margin-left 0.3s;">
+    <el-main :style="mainStyle" style="padding: 20px; background-color: var(--main-bg); overflow: auto; transition: margin-left 0.3s;">
       <router-view />
     </el-main>
   </el-container>
@@ -78,12 +98,15 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Expand, Fold, Monitor, TrendCharts, Odometer, View, Place, Connection, Document, Position, SetUp, UploadFilled } from '@element-plus/icons-vue'
+import { Expand, Fold, Monitor, TrendCharts, Odometer, View, Place, Connection, Document, Position, SetUp, UploadFilled, Setting } from '@element-plus/icons-vue'
+import { useTheme } from '../composables/useTheme'
+import type { ThemeType } from '../composables/useTheme'
 
 const router = useRouter()
 const route = useRoute()
 const activeMenu = ref(route.path)
 const isCollapsed = ref(true)
+const { currentTheme, setTheme, themes } = useTheme()
 
 // 切换菜单折叠状态
 const toggleCollapse = () => {
@@ -92,7 +115,7 @@ const toggleCollapse = () => {
 
 // 计算侧边栏宽度
 const asideWidth = computed(() => {
-  return isCollapsed.value ? '64px' : '240px'
+  return isCollapsed.value ? '64px' : '180px'
 })
 
 // 计算主内容区域样式
@@ -128,7 +151,7 @@ watch(
 }
 
 .el-menu-vertical-demo:not(.el-menu--collapse) {
-  width: 240px;
+  width: 200px;
 }
 
 .el-menu-vertical-demo .el-menu-item {
@@ -144,7 +167,7 @@ watch(
 }
 
 .el-menu-vertical-demo .el-menu-item.is-active {
-  color: #409EFF !important;
+  color: var(--sidebar-text-active) !important;
 }
 
 /* 折叠按钮样式 */
@@ -153,15 +176,15 @@ watch(
   line-height: 50px;
   text-align: center;
   cursor: pointer;
-  color: #fff;
-  background-color: #002140;
-  border-bottom: 1px solid #001529;
+  color: var(--sidebar-text);
+  background-color: var(--sidebar-bg-dark);
+  border-bottom: 1px solid var(--sidebar-bg);
   transition: background-color 0.3s;
-  overflow: hidden; /* 防止按钮出现滚动条 */
+  overflow: hidden;
 }
 
 .collapse-btn:hover {
-  background-color: #003366;
+  background-color: var(--sidebar-hover);
 }
 
 .collapse-btn .el-icon {
@@ -202,10 +225,6 @@ watch(
   -ms-overflow-style: none !important; /* IE 10+ */
 }
 
-:deep(html) {
-  overflow: -moz-scrollbars-none; /* 旧版 Firefox */
-}
-
 /* 确保主容器没有滚动条 */
 :deep(.el-container) {
   overflow: hidden !important;
@@ -213,15 +232,44 @@ watch(
 
 :deep(.el-aside) {
   overflow: hidden !important;
-}
-
-:deep(.el-main) {
-  overflow: auto;
-  scrollbar-width: none !important; /* Firefox */
-  -ms-overflow-style: none !important; /* IE 10+ */
+  position: relative;
 }
 
 :deep(.el-main::-webkit-scrollbar) {
   display: none !important;
+}
+
+/* 主题切换 */
+.theme-switcher {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 12px 16px;
+  background: var(--sidebar-bg-dark);
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+.theme-title {
+  font-size: 13px;
+  color: rgba(255,255,255,0.55);
+  margin-bottom: 8px;
+}
+
+.theme-switcher :deep(.el-input__wrapper) {
+  background: rgba(255,255,255,0.1);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.theme-switcher :deep(.el-input__inner) {
+  color: var(--sidebar-text);
+}
+
+.theme-switcher-collapsed {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
 }
 </style>

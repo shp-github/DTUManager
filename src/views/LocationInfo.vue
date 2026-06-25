@@ -255,7 +255,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .location-info {
   padding: 16px 20px;
-  background: #f5f7fa;
+  background: var(--page-bg);
   min-height: 100%;
 }
 

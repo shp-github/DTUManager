@@ -291,7 +291,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .device-resource {
   padding: 14px;
-  background: #f5f7fa;
+  background: var(--page-bg);
   min-height: 100%;
 }
 

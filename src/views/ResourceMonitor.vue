@@ -276,7 +276,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .resource-monitor {
   padding: 20px;
-  background: #f5f7fa;
+  background: var(--page-bg);
   min-height: 100%;
 }
 

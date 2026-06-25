@@ -22,7 +22,7 @@ body {
   margin: 0;
   font-family: 'Arial', sans-serif;
   height: 100%;
-  background-color: #f5f5f5;
+  background-color: var(--main-bg);
 }
 
 .dhcp-selector-container {
