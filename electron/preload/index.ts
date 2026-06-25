@@ -17,6 +17,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     send: (channel: string, ...args: any[]) => ipcRenderer.send(channel, ...args),
     invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args),
 
+    // -------------------- 窗口控制 --------------------
+    windowMinimize: () => ipcRenderer.send('window-minimize'),
+    windowMaximize: () => ipcRenderer.send('window-maximize'),
+    windowClose: () => ipcRenderer.send('window-close'),
+    windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+
     // -------------------- 业务接口 --------------------
     saveConfig: (config: any) => ipcRenderer.invoke('save-config', config),
     loadConfig: () => ipcRenderer.invoke('load-config'),

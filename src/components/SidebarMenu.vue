@@ -1,5 +1,5 @@
  <template>
-  <el-container style="height: 100vh; overflow: hidden;">
+  <el-container style="height: calc(100vh - 36px); overflow: hidden;">
     <!-- 左侧菜单 -->
     <el-aside :width="asideWidth" style="background-color: var(--sidebar-bg); color: var(--sidebar-text); transition: width 0.3s;">
       <!-- 折叠按钮 -->
@@ -121,7 +121,7 @@ const asideWidth = computed(() => {
 // 计算主内容区域样式
 const mainStyle = computed(() => {
   return {
-    'height': 'calc(100vh - 20px)',
+    'height': 'calc(100vh - 56px)',
     'width': `calc(100% - ${asideWidth.value})`,
     'transition': 'margin-left 0.3s'
   }
@@ -145,50 +145,97 @@ watch(
 .el-menu-vertical-demo {
   height: 100%;
   border-right: 0;
-  font-size: 24px;
-  font-weight: 700;
-  overflow: hidden; /* 防止菜单出现滚动条 */
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  padding-top: 4px;
 }
 
 .el-menu-vertical-demo:not(.el-menu--collapse) {
   width: 200px;
 }
 
+/* 菜单项 */
 .el-menu-vertical-demo .el-menu-item {
-  height: 60px;
-  line-height: 60px;
-  overflow: hidden; /* 防止菜单项出现滚动条 */
+  height: 48px;
+  line-height: 48px;
+  margin: 2px 8px;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all var(--duration-fast) var(--ease-out-expo);
+  position: relative;
+}
+
+.el-menu-vertical-demo .el-menu-item:hover {
+  background: var(--sidebar-hover) !important;
+  transform: translateX(2px);
+}
+
+/* 当前激活菜单项 — 左侧彩色指示条 */
+.el-menu-vertical-demo .el-menu-item.is-active {
+  color: var(--sidebar-text-active) !important;
+  background: var(--sidebar-hover) !important;
+  font-weight: 700;
+}
+
+.el-menu-vertical-demo .el-menu-item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--sidebar-active-indicator);
+}
+
+/* 折叠状态下的激活指示 */
+.el-menu--collapse .el-menu-item.is-active::before {
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
 }
 
 .el-menu-vertical-demo .el-sub-menu__title {
-  font-size: 24px;
-  font-weight: 700;
-  overflow: hidden; /* 防止子菜单标题出现滚动条 */
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
 }
 
-.el-menu-vertical-demo .el-menu-item.is-active {
-  color: var(--sidebar-text-active) !important;
+/* 菜单图标 */
+.el-menu-vertical-demo .el-menu-item .el-icon {
+  transition: transform var(--duration-normal) var(--ease-out-back);
+}
+
+.el-menu-vertical-demo .el-menu-item:hover .el-icon {
+  transform: scale(1.12);
 }
 
 /* 折叠按钮样式 */
 .collapse-btn {
-  height: 50px;
-  line-height: 50px;
+  height: 44px;
+  line-height: 44px;
   text-align: center;
   cursor: pointer;
   color: var(--sidebar-text);
-  background-color: var(--sidebar-bg-dark);
-  border-bottom: 1px solid var(--sidebar-bg);
-  transition: background-color 0.3s;
+  background: var(--sidebar-bg-dark);
+  border-bottom: 1px solid var(--sidebar-divider);
+  transition: all var(--duration-fast);
   overflow: hidden;
+  margin-bottom: 4px;
 }
 
 .collapse-btn:hover {
-  background-color: var(--sidebar-hover);
+  background: var(--sidebar-hover);
 }
 
 .collapse-btn .el-icon {
   vertical-align: middle;
+  transition: transform var(--duration-normal) var(--ease-out-expo);
+}
+
+.collapse-btn:hover .el-icon {
+  transform: rotate(180deg);
 }
 
 /* 菜单折叠时的样式 */
@@ -208,24 +255,15 @@ watch(
   top: 0;
 }
 
-/* 隐藏滚动条样式 */
+/* 隐藏菜单区域滚动条（桌面.css已全局美化） */
 :deep(.el-main) {
   overflow: auto;
 }
 
-/* 隐藏所有滚动条 */
-:deep(::-webkit-scrollbar) {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
+:deep(.el-main::-webkit-scrollbar) {
+  width: 6px !important;
 }
 
-:deep(*) {
-  scrollbar-width: none !important; /* Firefox */
-  -ms-overflow-style: none !important; /* IE 10+ */
-}
-
-/* 确保主容器没有滚动条 */
 :deep(.el-container) {
   overflow: hidden !important;
 }
@@ -235,25 +273,23 @@ watch(
   position: relative;
 }
 
-:deep(.el-main::-webkit-scrollbar) {
-  display: none !important;
-}
-
 /* 主题切换 */
 .theme-switcher {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  padding: 12px 16px;
+  padding: 14px 16px;
   background: var(--sidebar-bg-dark);
-  border-top: 1px solid rgba(255,255,255,0.1);
+  border-top: 1px solid var(--sidebar-divider);
 }
 
 .theme-title {
-  font-size: 13px;
-  color: rgba(255,255,255,0.55);
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.45);
   margin-bottom: 8px;
+  letter-spacing: 0.5px;
 }
 
 .theme-switcher :deep(.el-input__wrapper) {

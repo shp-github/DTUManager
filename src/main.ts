@@ -4,6 +4,7 @@ import router from './router'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import './assets/themes.css'
+import './assets/desktop.css'
 
 // 初始化主题（从 localStorage 恢复）
 const saved = localStorage.getItem('app-theme') || ''

@@ -79,6 +79,12 @@ declare global {
             openChildWindow: (page: string) => Promise<void>
             openWin: (arg: any) => Promise<void>
 
+            // 窗口控制
+            windowMinimize: () => void
+            windowMaximize: () => void
+            windowClose: () => void
+            windowIsMaximized: () => Promise<boolean>
+
             // 通用通信方法
             on: (channel: string, listener: (...args: any[]) => void) => void
             off: (channel: string, listener?: (...args: any[]) => void) => void

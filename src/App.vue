@@ -1,11 +1,13 @@
 <template>
   <div id="app">
+    <TitleBar />
     <!-- 主内容区域 -->
     <SidebarMenu />
   </div>
 </template>
 
 <script setup lang="ts">
+import TitleBar from './components/TitleBar.vue'
 import SidebarMenu from './components/SidebarMenu.vue'
 
 </script>
@@ -16,11 +18,14 @@ import SidebarMenu from './components/SidebarMenu.vue'
   margin: 0;
   padding: 0;
   height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 body {
   margin: 0;
-  font-family: 'Arial', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   height: 100%;
   background-color: var(--main-bg);
 }
@@ -37,23 +42,5 @@ body {
 
 .dhcp-selector-container > * {
   pointer-events: auto;
-}
-
-.control-btn {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: 1001;
-  padding: 8px 16px;
-  background: #2196F3;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.control-btn:hover {
-  background: #1976D2;
 }
 </style>

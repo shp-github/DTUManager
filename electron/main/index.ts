@@ -110,12 +110,16 @@ function createWindow() {
         height: 800,
         title: 'DTU 上位机配置',
         icon: 'public/1.png',
+        frame: false,
         webPreferences: {
             preload,
             nodeIntegration: false,
             contextIsolation: true,
         },
     })
+
+    // 隐藏默认菜单栏
+    Menu.setApplicationMenu(null)
 
     // 加载页面
     if (VITE_DEV_SERVER_URL) {
@@ -1581,6 +1585,28 @@ ipcMain.handle('read-log-file', async (_event, { date, deviceId, protocol }: { d
     } catch {
         return ''
     }
+})
+
+// =================== 窗口控制 IPC ===================
+
+ipcMain.on('window-minimize', () => {
+    win?.minimize()
+})
+
+ipcMain.on('window-maximize', () => {
+    if (win?.isMaximized()) {
+        win.unmaximize()
+    } else {
+        win?.maximize()
+    }
+})
+
+ipcMain.on('window-close', () => {
+    win?.close()
+})
+
+ipcMain.handle('window-is-maximized', () => {
+    return win?.isMaximized() ?? false
 })
 
 // =================== 应用生命周期 ===================
