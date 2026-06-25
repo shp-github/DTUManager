@@ -21,17 +21,12 @@
           class="search-input"
       />
 
-      <!-- 网络类型下拉选择 -->
-      <el-select
-          class="search-input"
-          v-model="networkTypeFilter"
-          placeholder="全部类型"
-          clearable
-      >
-        <el-option label="全部类型" value="" />
-        <el-option label="ETH (有线)" value="ETH" />
-        <el-option label="WiFi (无线)" value="WiFi" />
-      </el-select>
+      <!-- 网络类型筛选 -->
+      <el-radio-group v-model="networkTypeFilter" size="default">
+        <el-radio-button value="">全部</el-radio-button>
+        <el-radio-button value="ETH">ETH</el-radio-button>
+        <el-radio-button value="WiFi">WiFi</el-radio-button>
+      </el-radio-group>
 
       <el-button type="primary"  @click="searchDevices">
         搜索
@@ -54,7 +49,7 @@
     <!-- 设备表格 -->
     <el-table
         :data="filteredDevices"
-        style="width:100%; min-width: 1500px;"
+        style="width:100%"
         stripe
         border
         :row-style="{ height: '48px' }"
@@ -63,12 +58,41 @@
         :show-header="true"
     >
     <el-table-column type="selection" width="55" />
-    <el-table-column prop="name" label="设备名称" width="160" resizable />
+    <el-table-column prop="name" label="设备名称" width="200" resizable />
     <el-table-column prop="id" label="设备号" width="140" resizable />
     <el-table-column prop="ip" label="IP 地址" width="140" resizable />
     <el-table-column prop="firmware" label="固件版本" width="100" resizable />
-    <el-table-column prop="networkType" label="网络类型" width="90" resizable />
-    <el-table-column prop="RSSI" label="信号" width="80" resizable />
+    <el-table-column label="网络类型" width="100" align="center">
+      <template #default="{ row }">
+        <el-tooltip :content="row.networkType || '未知'" placement="top" effect="dark">
+          <img
+            v-if="getNetworkIcon(row.networkType)"
+            :src="getNetworkIcon(row.networkType)"
+            class="network-img"
+            :alt="row.networkType"
+          />
+          <span v-else>{{ row.networkType || '-' }}</span>
+        </el-tooltip>
+      </template>
+    </el-table-column>
+    <el-table-column label="信号" width="140" resizable>
+      <template #default="{ row }">
+        <template v-if="row.RSSI !== null && row.RSSI !== undefined">
+          <el-tooltip :content="getSignalTooltip(row.RSSI)" placement="top" effect="dark" raw-content>
+            <div class="signal-cell">
+              <img
+                v-if="getWifiIcon(row.RSSI)"
+                :src="getWifiIcon(row.RSSI)"
+                class="wifi-img"
+                alt="signal"
+              />
+              <span class="signal-value" :style="{ color: getSignalColor(row.RSSI) }">{{ row.RSSI }} dBm</span>
+            </div>
+          </el-tooltip>
+        </template>
+        <span v-else class="signal-na">N/A</span>
+      </template>
+    </el-table-column>
     <el-table-column prop="mac" label="MAC地址" width="180" resizable />
     <el-table-column label="运行时间" width="200" resizable>
       <template #default="{ row }">
@@ -77,11 +101,10 @@
     </el-table-column>
     <el-table-column prop="heart_interval" label="心跳(s)" width="80" resizable />
 
-    <!-- 操作列放到最后并固定 -->
+    <!-- 操作列放到最后 -->
     <el-table-column
         label="操作"
         width="220"
-        fixed="right"
         align="center"
     >
       <template #default="{ row }">
@@ -289,12 +312,12 @@ const terminalOutput = ref<HTMLElement>()
 
 // 快速命令
 const quickCommands = ref([
+  { name: '通知设备连接', topic: '', message: '', action: 'connect' },
+  { name: '获取设备号', topic: `/server/cmd/`, message: '{"type":"get_client_id"}' },
   { name: '获取配置', topic: `/server/cmd/`, action: 'get_config'},
   { name: '重启设备(MQTT)', topic: `/server/cmd/`, message: '{"type":"reboot"}' },
   { name: '重启设备(UDP)', topic: ``, message: '',action: 'reboot' },
-  { name: '获取设备号', topic: `/server/cmd/`, message: '{"type":"get_client_id"}' },
   { name: '清空终端', topic: '', message: '', action: 'clear' },
-  { name: '通知设备连接', topic: '', message: '', action: 'connect' }
 ])
 
 
@@ -599,6 +622,62 @@ const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
+// -- 信号等级 --
+interface SignalLevel {
+  level: string
+  description: string
+  bars: number
+  color: string
+}
+
+const getSignalLevel = (rssi: number): SignalLevel => {
+  if (rssi >= -30) return { level: '超近极值信号', description: '距离路由器极近，几乎贴天线，极少出现，信号顶格溢出', bars: 6, color: '#FF1744' }
+  if (rssi >= -50) return { level: '极强（满格顶配）', description: '信号质量顶级，网速拉满、延迟极低', bars: 5, color: '#00C853' }
+  if (rssi >= -67) return { level: '良好', description: '日常最优区间，游戏、高清视频稳定流畅', bars: 4, color: '#64DD17' }
+  if (rssi >= -70) return { level: '临界合格', description: '基础上网够用，高带宽业务偶有波动', bars: 3, color: '#FFD600' }
+  if (rssi >= -80) return { level: '偏弱', description: '刷微信、浏览网页尚可，网速不稳定', bars: 2, color: '#FF9100' }
+  if (rssi >= -90) return { level: '很差', description: '卡顿明显，容易断流，不适合视频下载', bars: 1, color: '#FF6D00' }
+  return { level: '微弱 / 几乎无信号', description: '连接困难，频繁掉线', bars: 0, color: '#D50000' }
+}
+
+const getSignalColor = (rssi: number): string => getSignalLevel(rssi).color
+
+const getSignalBars = (rssi: number): string => {
+  const { bars } = getSignalLevel(rssi)
+  return '●'.repeat(bars) + '○'.repeat(6 - bars)
+}
+
+const getWifiLevel = (rssi: number): number => {
+  const { bars } = getSignalLevel(rssi)
+  if (bars >= 5) return 3
+  if (bars >= 3) return 2
+  if (bars >= 1) return 1
+  return 0
+}
+
+const getWifiIcon = (rssi: number): string => {
+  const level = getWifiLevel(rssi)
+  if (level === 0) return ''
+  return `/wifi/${level}.svg`
+}
+
+const getNetworkIcon = (networkType: string): string => {
+  const map: Record<string, string> = {
+    ETH: '/network/ethernet.svg',
+    WiFi: '/network/wifi.svg',
+  }
+  return map[networkType] || ''
+}
+
+const getSignalTooltip = (rssi: number): string => {
+  const { level, description } = getSignalLevel(rssi)
+  return `<div style="line-height:1.8">
+    <div><b>信号强度：</b>${rssi} dBm</div>
+    <div><b>等级：</b>${level}</div>
+    <div style="color:#aaa;font-size:12px">${description}</div>
+  </div>`
+}
+
 // 转换秒为 "X天 Y小时 Z分钟 W秒" 格式
 const formatRuntime = (seconds: number) => {
   const days = Math.floor(seconds / (24 * 3600))
@@ -858,9 +937,11 @@ onMounted(() => {
 .dtu-list-container {
   padding: 20px;
   background: #f5f7fa;
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .title {
@@ -879,43 +960,68 @@ onMounted(() => {
   border-radius: 10px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.05);
   margin-bottom: 20px;
-  position: sticky;
-  top: 0;
+  flex-shrink: 0;
   z-index: 10;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
 .search-input {
   width: 280px;
 }
 
-.el-table-wrapper {
-  flex-grow: 1;
-  overflow-y: auto;
-  max-height: calc(100vh - 220px);
-}
-
-.el-table {
+/* 表格容器自适应填满剩余空间 */
+:deep(.el-table) {
+  flex: 1;
+  min-height: 0;
   border-radius: 12px;
   background: #fff;
   box-shadow: 0 2px 10px rgba(0,0,0,0.06);
-  max-height: 100%;
-  overflow: hidden;
+}
+
+/* 让表格内部滚动条生效 */
+:deep(.el-table__inner-wrapper) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+:deep(.el-table__body-wrapper) {
+  flex: 1;
+  overflow-y: auto !important;
 }
 
 .el-table th.el-table__cell {
   background-color: #f2f6fc !important;
-  font-weight: 600;
+  font-weight: 700;
   color: #303133;
   height: 45px;
+}
+
+:deep(.el-table__header-wrapper th) {
+  text-align: center !important;
+}
+
+:deep(.el-table__body-wrapper td) {
+  text-align: center;
+}
+
+/* 设备名称列左对齐 */
+:deep(.el-table__header-wrapper th:nth-child(2)) {
+  text-align: left !important;
+}
+
+:deep(.el-table__body-wrapper td:nth-child(2)) {
+  text-align: left;
 }
 
 .el-table .el-table__row {
   height: 48px;
 }
 
-.el-table tbody tr:hover > td {
-  background: #f9fbff !important;
+/* 行悬浮高亮 */
+:deep(.el-table__body tr:hover > td) {
+  background: #d9ecff !important;
+  box-shadow: inset 3px 0 0 #409eff;
+  transition: all 0.15s ease;
 }
 
 .el-button--primary.is-link,
@@ -931,6 +1037,37 @@ onMounted(() => {
 .el-button--primary:hover {
   background-color: #66b1ff;
   border-color: #66b1ff;
+}
+
+/* 信号单元格样式 */
+.signal-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.wifi-img {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.network-img {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.signal-value {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.signal-na {
+  color: #c0c4cc;
+  font-size: 13px;
 }
 
 /* 升级对话框样式 */

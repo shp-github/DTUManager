@@ -125,8 +125,8 @@
             </div>
             <div class="card-body">
               <div class="info-row">
-                <span class="label">设备号</span>
-                <span class="value">{{ device.id }}</span>
+                <span class="label">运行时间</span>
+                <span class="value">{{ formatRuntime(device.runtime) }}</span>
               </div>
               <div class="info-row">
                 <span class="label">IP</span>
@@ -243,6 +243,16 @@ const formatFileSize = (bytes: number): string => {
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+const formatRuntime = (seconds: number | undefined): string => {
+  if (seconds === undefined || seconds === null) return '-'
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const mins = Math.floor((seconds % 3600) / 60)
+  if (days > 0) return `${days}天 ${hours}小时`
+  if (hours > 0) return `${hours}小时 ${mins}分`
+  return `${mins}分`
 }
 
 // -- MQTT 进度监听 --

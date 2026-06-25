@@ -7,10 +7,12 @@ import { contextBridge, ipcRenderer } from 'electron'
 contextBridge.exposeInMainWorld('electronAPI', {
     // -------------------- 基础通信 --------------------
     on: (channel: string, listener: (...args: any[]) => void) => {
-        ipcRenderer.on(channel, (_, ...args) => listener(...args))
+        ipcRenderer.on(channel, listener)
     },
     off: (channel: string, listener?: (...args: any[]) => void) => {
-        ipcRenderer.off(channel, listener)
+        if (listener) {
+            ipcRenderer.off(channel, listener)
+        }
     },
     send: (channel: string, ...args: any[]) => ipcRenderer.send(channel, ...args),
     invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args),

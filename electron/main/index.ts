@@ -1009,13 +1009,27 @@ ipcMain.handle('get-system-info', async () => {
 // Ping 测试
 ipcMain.handle('network-ping', async (_event, host: string) => {
     return new Promise((resolve) => {
-        const cmd = process.platform === 'win32' ? `ping -n 4 ${host}` : `ping -c 4 ${host}`
-        exec(cmd, { timeout: 15000 }, (error, stdout, stderr) => {
-            const lines = stdout ? stdout.split('\n').filter(l => l.trim()) : []
+        const isWin = process.platform === 'win32'
+        const cmd = isWin ? `ping -n 4 ${host}` : `ping -c 4 ${host}`
+        // Windows ping 输出为 GBK 编码，需用 buffer 模式接收后手动解码
+        exec(cmd, { timeout: 15000, encoding: 'buffer' }, (error, stdout, stderr) => {
+            const decode = (buf: Buffer | string): string => {
+                if (!buf || buf.length === 0) return ''
+                const buffer = Buffer.isBuffer(buf) ? buf : Buffer.from(buf)
+                try {
+                    // Windows 中文环境 ping 输出为 GBK，优先尝试 GBK 解码
+                    if (isWin) return new TextDecoder('gbk').decode(buffer)
+                } catch { /* fallback to utf-8 */ }
+                return buffer.toString('utf-8')
+            }
+            const stdoutStr = decode(stdout)
+            const lines = stdoutStr ? stdoutStr.split('\n').filter(l => l.trim()) : []
+            // ping 不通时退出码非零是正常行为，仍然返回输出内容
+            const spawnError = error && (!stdoutStr || stdoutStr.length === 0)
             resolve({
-                success: !error,
+                success: !spawnError,
                 lines,
-                error: error ? (stderr || error.message) : null
+                error: spawnError ? (stderr ? decode(stderr) : error.message) : null
             })
         })
     })
@@ -1198,8 +1212,9 @@ ipcMain.handle('network-tcp-connect', async (_event, { host, port, protocol }: {
         networkTarget = { host, port }
 
         if (protocol === 'tcp') {
-            // 关闭旧连接
+            // 关闭旧连接（彻底清理）
             if (tcpClient) {
+                tcpClient.removeAllListeners()
                 tcpClient.destroy()
                 tcpClient = null
             }
@@ -1207,11 +1222,13 @@ ipcMain.handle('network-tcp-connect', async (_event, { host, port, protocol }: {
             return new Promise((resolve) => {
                 tcpClient = new net.Socket()
                 let resolved = false
+                let hadError = false
 
                 tcpClient.setTimeout(5000)
 
                 tcpClient.connect(port, host, () => {
                     resolved = true
+                    tcpClient.setTimeout(0) // 连接成功后取消超时
                     resolve({ success: true })
                 })
 
@@ -1223,6 +1240,7 @@ ipcMain.handle('network-tcp-connect', async (_event, { host, port, protocol }: {
                 })
 
                 tcpClient.on('error', (err: Error) => {
+                    hadError = true
                     if (!resolved) {
                         resolved = true
                         resolve({ success: false, error: err.message })
@@ -1230,8 +1248,11 @@ ipcMain.handle('network-tcp-connect', async (_event, { host, port, protocol }: {
                     win?.webContents.send('network-data', { data: `[ERROR] ${err.message}`, hex: '' })
                 })
 
-                tcpClient.on('close', () => {
-                    win?.webContents.send('network-data', { data: '[连接已关闭]', hex: '' })
+                tcpClient.on('close', (hadErrorFlag: boolean) => {
+                    // 只有异常关闭（非主动断开）才通知前端
+                    if (!hadErrorFlag && !resolved) {
+                        win?.webContents.send('network-data', { data: '[连接已关闭]', hex: '' })
+                    }
                     tcpClient = null
                 })
 
@@ -1276,6 +1297,9 @@ ipcMain.handle('network-tcp-connect', async (_event, { host, port, protocol }: {
 ipcMain.handle('network-tcp-disconnect', async () => {
     try {
         if (tcpClient) {
+            tcpClient.removeAllListeners('close')
+            tcpClient.removeAllListeners('data')
+            tcpClient.removeAllListeners('error')
             tcpClient.destroy()
             tcpClient = null
         }

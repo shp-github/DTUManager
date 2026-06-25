@@ -186,11 +186,11 @@ onBeforeUnmount(() => {
           </template>
           <div class="memory-chart">
             <el-progress
-              type="dashboard"
-              :percentage="getHeapUsage(device)"
-              :width="140"
-              :stroke-width="14"
-              :color="getProgressColor(getHeapUsage(device))"
+                type="dashboard"
+                :percentage="getHeapUsage(device)"
+                :width="120"
+                :stroke-width="12"
+                :color="getProgressColor(getHeapUsage(device))"
             >
               <template #default="{ percentage }">
                 <div class="progress-inner">
@@ -223,11 +223,11 @@ onBeforeUnmount(() => {
           </template>
           <div class="memory-chart">
             <el-progress
-              type="dashboard"
-              :percentage="getFlashUsage(device)"
-              :width="140"
-              :stroke-width="14"
-              :color="getProgressColor(getFlashUsage(device))"
+                type="dashboard"
+                :percentage="getFlashUsage(device)"
+                :width="120"
+                :stroke-width="12"
+                :color="getProgressColor(getFlashUsage(device))"
             >
               <template #default="{ percentage }">
                 <div class="progress-inner">
@@ -290,16 +290,16 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .device-resource {
-  padding: 20px;
+  padding: 14px;
   background: #f5f7fa;
   min-height: 100%;
 }
 
 .page-title {
-  font-size: 22px;
+  font-size: 21px;
   font-weight: 700;
   color: #333;
-  margin: 0 0 20px 0;
+  margin: 0 0 14px 0;
 }
 
 /* 空状态 */
@@ -334,15 +334,15 @@ onBeforeUnmount(() => {
 
 /* 设备分区 */
 .device-section {
-  margin-bottom: 30px;
+  margin-bottom: 18px;
 }
 
 .device-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
-  padding: 12px 16px;
+  margin-bottom: 12px;
+  padding: 8px 14px;
   background: #fff;
   border-radius: 10px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.04);
@@ -395,17 +395,17 @@ onBeforeUnmount(() => {
 .stat-cards {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .stat-card {
   background: #fff;
   border-radius: 10px;
-  padding: 18px 20px;
+  padding: 12px 14px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.05);
   transition: transform 0.2s, box-shadow 0.2s;
 }
@@ -416,13 +416,13 @@ onBeforeUnmount(() => {
 }
 
 .stat-card-icon {
-  font-size: 28px;
-  width: 48px;
-  height: 48px;
+  font-size: 22px;
+  width: 38px;
+  height: 38px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
+  border-radius: 10px;
   flex-shrink: 0;
 }
 
@@ -437,22 +437,22 @@ onBeforeUnmount(() => {
 }
 
 .stat-card-value {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: #333;
 }
 
 .stat-card-label {
-  font-size: 12px;
+  font-size: 11px;
   color: #909399;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 /* 图表行 */
 .chart-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  gap: 12px;
 }
 
 .chart-card {
@@ -460,7 +460,7 @@ onBeforeUnmount(() => {
 }
 
 .card-title {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: #333;
 }
@@ -470,7 +470,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
 }
 
 .progress-inner {
@@ -480,7 +480,7 @@ onBeforeUnmount(() => {
 }
 
 .progress-value {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   color: #333;
 }
@@ -494,14 +494,14 @@ onBeforeUnmount(() => {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
 
 .detail-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 10px;
+  padding: 0 6px;
 }
 
 .detail-label {
@@ -529,23 +529,23 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 12px;
 }
 
 .chip-visual {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .chip-icon {
-  font-size: 48px;
+  font-size: 36px;
   color: #667eea;
 }
 
 .chip-name {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   color: #333;
 }
@@ -554,14 +554,14 @@ onBeforeUnmount(() => {
   width: 100%;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  gap: 8px;
 }
 
 .spec-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 10px;
+  padding: 6px 8px;
   background: #f9fafb;
   border-radius: 8px;
 }

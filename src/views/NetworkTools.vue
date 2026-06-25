@@ -16,16 +16,21 @@ const networkInterfaces = ref<NetworkInterface[]>([])
 const selectedLocalIp = ref('')
 
 // ========== 连接设置 ==========
-const remoteHost = ref('192.168.0.1')
+const remoteHost = ref('192.168.0.114')
 const remotePort = ref(502)
 const localPort = ref(502)
 const isConnected = ref(false)
 const isListening = ref(false)
 const connecting = ref(false)
+const autoReconnect = ref(true)
+const reconnectTimer = ref<ReturnType<typeof setTimeout> | null>(null)
+const reconnectAttempts = ref(0)
+const MAX_RECONNECT = 10
 const sendHex = ref(true)
 const sendInput = ref('')
 const autoScroll = ref(true)
 const terminalRef = ref<HTMLDivElement | null>(null)
+const receiveHex = ref(true)  // 接收显示模式：true=HEX, false=ASCII
 
 interface LogEntry {
   id: number
@@ -38,12 +43,29 @@ const logs = ref<LogEntry[]>([])
 let logId = 0
 
 // ========== Modbus TCP 快捷指令 ==========
+const modbusMode = ref<'rtu' | 'tcp'>('rtu')
 const modbusSlaveId = ref(1)
 const modbusFuncCode = ref('03')
 const modbusStartAddr = ref(0)
 const modbusQuantity = ref(1)
 const modbusWriteValue = ref(0)
 let modbusTransId = 0
+
+// Modbus RTU CRC16 计算
+const calcCRC16 = (data: number[]): number => {
+  let crc = 0xFFFF
+  for (const byte of data) {
+    crc ^= byte
+    for (let i = 0; i < 8; i++) {
+      if (crc & 0x0001) {
+        crc = (crc >> 1) ^ 0xA001
+      } else {
+        crc >>= 1
+      }
+    }
+  }
+  return crc
+}
 
 const funcCodes = [
   { value: '01', label: '01 - 读线圈' },
@@ -92,11 +114,8 @@ const loadNetworkInterfaces = async () => {
   }
 }
 
-// 生成 Modbus TCP 帧
-const buildModbusTcpFrame = () => {
-  modbusTransId++
-  const transId = modbusTransId & 0xFFFF
-  const unitId = modbusSlaveId.value & 0xFF
+// 生成 Modbus 帧
+const buildModbusFrame = () => {
   const fc = parseInt(modbusFuncCode.value, 16)
   const startAddr = modbusStartAddr.value & 0xFFFF
   const quantity = modbusQuantity.value & 0xFFFF
@@ -119,21 +138,33 @@ const buildModbusTcpFrame = () => {
     }
   }
 
-  const length = pdu.length + 1
-  const mbap = [
-    (transId >> 8) & 0xFF, transId & 0xFF,
-    0x00, 0x00,
-    (length >> 8) & 0xFF, length & 0xFF,
-    unitId
-  ]
-
-  const frame = [...mbap, ...pdu]
-  return frame.map(b => b.toString(16).padStart(2, '0')).join(' ')
+  if (modbusMode.value === 'tcp') {
+    // TCP: MBAP 头 + PDU
+    modbusTransId++
+    const transId = modbusTransId & 0xFFFF
+    const unitId = modbusSlaveId.value & 0xFF
+    const length = pdu.length + 1
+    const mbap = [
+      (transId >> 8) & 0xFF, transId & 0xFF,
+      0x00, 0x00,
+      (length >> 8) & 0xFF, length & 0xFF,
+      unitId
+    ]
+    const frame = [...mbap, ...pdu]
+    return frame.map(b => b.toString(16).padStart(2, '0')).join(' ')
+  } else {
+    // RTU: 地址 + PDU + CRC16
+    const addr = modbusSlaveId.value & 0xFF
+    const adu = [addr, ...pdu]
+    const crc = calcCRC16(adu)
+    adu.push(crc & 0xFF, (crc >> 8) & 0xFF)
+    return adu.map(b => b.toString(16).padStart(2, '0')).join(' ')
+  }
 }
 
 // 发送 Modbus 指令
 const sendModbusCommand = async () => {
-  const hexStr = buildModbusTcpFrame()
+  const hexStr = buildModbusFrame()
   sendInput.value = hexStr
   sendHex.value = true
   await sendData()
@@ -151,6 +182,7 @@ const connect = async () => {
     })
     if (result.success) {
       isConnected.value = true
+      reconnectAttempts.value = 0
       addLog('system', `[客户端] 已连接到 ${remoteHost.value}:${remotePort.value} (${protocol.value.toUpperCase()})`)
     } else {
       addLog('system', `连接失败: ${result.error}`)
@@ -163,6 +195,8 @@ const connect = async () => {
 }
 
 const disconnect = async () => {
+  cancelReconnect()
+  stopTimer()
   try {
     await window.electronAPI.invoke('network-tcp-disconnect')
     isConnected.value = false
@@ -196,6 +230,7 @@ const startServer = async () => {
 }
 
 const stopServer = async () => {
+  stopTimer()
   try {
     await window.electronAPI.invoke('network-server-stop')
     isListening.value = false
@@ -217,9 +252,13 @@ const sendData = async () => {
     if (result.success) {
       const display = sendHex.value ? formatHex(sendInput.value) : sendInput.value
       addLog('send', display)
-      sendInput.value = ''
     } else {
       addLog('system', `发送失败: ${result.error}`)
+      // 如果是连接断开导致的失败，更新状态并触发重连
+      if (result.error === 'TCP未连接' || result.error === 'UDP未连接') {
+        isConnected.value = false
+        tryReconnect()
+      }
     }
   } catch (e: any) {
     addLog('system', `发送异常: ${e.message}`)
@@ -228,14 +267,116 @@ const sendData = async () => {
 
 const clearLogs = () => { logs.value = []; logId = 0 }
 
+// ========== 定时发送 ==========
+const timerEnabled = ref(false)
+const timerInterval = ref(1000)
+const timerHandle = ref<ReturnType<typeof setInterval> | null>(null)
+
+const toggleTimer = () => {
+  if (timerEnabled.value) {
+    stopTimer()
+  } else {
+    startTimer()
+  }
+}
+
+const startTimer = () => {
+  if (timerHandle.value) return
+  if (!sendInput.value.trim()) {
+    timerEnabled.value = false
+    addLog('system', '定时发送启动失败: 输入内容为空')
+    return
+  }
+  const active = workMode.value === 'client' ? isConnected.value : isListening.value
+  if (!active) {
+    timerEnabled.value = false
+    addLog('system', '定时发送启动失败: 未连接/未监听')
+    return
+  }
+  timerEnabled.value = true
+  addLog('system', `定时发送已启动 (每 ${timerInterval.value}ms)`)
+  timerHandle.value = setInterval(() => {
+    sendData()
+  }, timerInterval.value)
+}
+
+const stopTimer = () => {
+  if (timerHandle.value) {
+    clearInterval(timerHandle.value)
+    timerHandle.value = null
+  }
+  timerEnabled.value = false
+  addLog('system', '定时发送已停止')
+}
+
+const onTimerIntervalChange = () => {
+  if (timerEnabled.value) {
+    stopTimer()
+    startTimer()
+  }
+}
+
 // 接收数据
 const handleNetworkData = (_event: any, data: any) => {
-  if (data.client) {
+  // 客户端连接通知（有 client 字段）
+  if (data && data.client) {
     addLog('system', `[客户端连接] ${data.client}`)
     return
   }
-  const display = data.hex ? formatHex(data.hex) : data.data
+
+  // 系统消息：hex 为空字符串（后端把 hex='' 作为系统消息标识）
+  if (!data || data.hex === '' || data.hex == null) {
+    const msg = (data && data.data) || ''
+    addLog('system', msg)
+
+    // 连接断开 / 错误 → 触发自动重连
+    if (msg.startsWith('[连接已关闭]') || msg.startsWith('[ERROR]')) {
+      if (workMode.value === 'client') {
+        isConnected.value = false
+        tryReconnect()
+      }
+    }
+    return
+  }
+
+  // 数据消息：hex 非空 → 根据显示模式决定展示 HEX 还是 ASCII
+  const hexStr = data.hex || ''
+  let display = ''
+  if (receiveHex.value) {
+    display = formatHex(hexStr)
+  } else {
+    // ASCII 模式：保留中文、可打印 ASCII、换行回车制表符，其余显示为 .
+    const raw = data.data || ''
+    display = raw.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F]/g, '.')
+  }
   addLog('receive', display)
+}
+
+// 自动重连
+const tryReconnect = () => {
+  if (workMode.value !== 'client') return
+  if (!autoReconnect.value) return
+  if (reconnectTimer.value) return
+  if (reconnectAttempts.value >= MAX_RECONNECT) {
+    addLog('system', `重连失败: 已达最大重试次数(${MAX_RECONNECT})`)
+    reconnectAttempts.value = 0
+    return
+  }
+  reconnectAttempts.value++
+  const delay = Math.min(2000 * reconnectAttempts.value, 15000)
+  addLog('system', `将在 ${delay / 1000}s 后第${reconnectAttempts.value}次自动重连...`)
+  reconnectTimer.value = setTimeout(async () => {
+    reconnectTimer.value = null
+    await connect()
+  }, delay)
+}
+
+const cancelReconnect = () => {
+  if (reconnectTimer.value) {
+    clearTimeout(reconnectTimer.value)
+    reconnectTimer.value = null
+  }
+  reconnectAttempts.value = 0
 }
 
 // Ping
@@ -269,6 +410,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  cancelReconnect()
+  stopTimer()
   window.electronAPI.off('network-data', handleNetworkData)
   if (isConnected.value) window.electronAPI.invoke('network-tcp-disconnect')
   if (isListening.value) window.electronAPI.invoke('network-server-stop')
@@ -326,10 +469,20 @@ onBeforeUnmount(() => {
               </el-tag>
             </template>
             <div class="spacer"></div>
+            <el-checkbox v-if="workMode === 'client'" v-model="autoReconnect" :label="reconnectAttempts > 0 ? `自动重连(${reconnectAttempts}/${MAX_RECONNECT})` : '自动重连'" size="small" />
             <el-button size="small" @click="clearLogs">清空</el-button>
             <el-checkbox v-model="autoScroll" label="自动滚动" size="small" />
           </div>
         </el-card>
+
+        <!-- 接收显示模式切换 -->
+        <div class="receive-mode-bar">
+          <el-radio-group v-model="receiveHex" size="small">
+            <el-radio-button :value="true">HEX</el-radio-button>
+            <el-radio-button :value="false">ASCII</el-radio-button>
+          </el-radio-group>
+          <span class="receive-mode-hint">{{ receiveHex ? '十六进制显示' : 'ASCII 显示' }}</span>
+        </div>
 
         <!-- 终端 -->
         <div class="terminal" ref="terminalRef">
@@ -351,14 +504,27 @@ onBeforeUnmount(() => {
           <el-input v-model="sendInput" placeholder="输入要发送的数据" :disabled="!canSend" @keyup.enter="sendData" style="flex: 1;" size="small" />
           <el-button type="primary" size="small" @click="sendData" :disabled="!canSend || !sendInput.trim()">发送</el-button>
         </div>
+        <!-- 定时发送栏 -->
+        <div class="timer-bar">
+          <el-switch v-model="timerEnabled" size="small" @change="toggleTimer" :disabled="!canSend || !sendInput.trim()" />
+          <span class="timer-label">{{ timerEnabled ? '定时中' : '定时发' }}</span>
+          <el-input-number v-model="timerInterval" :min="100" :max="60000" :step="100" :disabled="timerEnabled" size="small" style="width: 100px;" @change="onTimerIntervalChange" />
+          <span class="timer-unit">ms</span>
+        </div>
       </div>
 
       <!-- 右侧：Modbus + Ping -->
       <div class="right-panel">
-        <!-- Modbus TCP 指令 -->
+        <!-- Modbus 指令 -->
         <el-card class="modbus-card" shadow="hover">
           <template #header>
-            <span class="card-title">📋 Modbus TCP 指令</span>
+            <div class="modbus-header">
+              <span class="card-title">📋 Modbus 指令</span>
+              <el-radio-group v-model="modbusMode" size="small">
+                <el-radio-button value="rtu">RTU</el-radio-button>
+                <el-radio-button value="tcp">TCP</el-radio-button>
+              </el-radio-group>
+            </div>
           </template>
           <div class="modbus-form">
             <div class="form-row">
@@ -385,7 +551,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="form-row">
               <span class="form-label">预览</span>
-              <code class="hex-preview">{{ formatHex(buildModbusTcpFrame()) }}</code>
+              <code class="hex-preview">{{ formatHex(buildModbusFrame()) }}</code>
             </div>
             <el-button type="success" size="small" @click="sendModbusCommand" :disabled="!canSend" style="width: 100%;">
               发送 Modbus 指令
@@ -505,6 +671,56 @@ onBeforeUnmount(() => {
 .send-bar :deep(.el-input__wrapper) { background: #3c3c3c; box-shadow: none; }
 .send-bar :deep(.el-input__inner) { color: #d4d4d4; }
 
+/* 接收显示模式切换栏 */
+.receive-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: #252526;
+  border-bottom: 1px solid #333;
+}
+
+.receive-mode-hint {
+  font-size: 12px;
+  color: #909399;
+}
+
+/* 定时发送栏 */
+.timer-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #2d2d2d;
+  border-top: 1px solid #444;
+}
+
+.timer-label {
+  font-size: 12px;
+  color: #67c23a;
+  width: 42px;
+  flex-shrink: 0;
+}
+
+.timer-unit {
+  font-size: 12px;
+  color: #909399;
+}
+
+.timer-bar :deep(.el-input-number--small) {
+  width: 100px;
+}
+
+.timer-bar :deep(.el-input__wrapper) {
+  background: #3c3c3c;
+  box-shadow: none;
+}
+
+.timer-bar :deep(.el-input__inner) {
+  color: #d4d4d4;
+}
+
 /* 右侧面板 */
 .modbus-card, .ping-card {
   border-radius: 8px;
@@ -514,6 +730,12 @@ onBeforeUnmount(() => {
   font-size: 14px;
   font-weight: 600;
   color: #333;
+}
+
+.modbus-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .modbus-form {
