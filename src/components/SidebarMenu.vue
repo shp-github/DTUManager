@@ -24,11 +24,11 @@
           @select="handleMenuSelect"
       >
         <el-menu-item index="/devices">
-          <el-icon><Monitor /></el-icon>
+          <el-icon><Cpu /></el-icon>
           <template #title>设备列表</template>
         </el-menu-item>
         <el-menu-item index="/upgrade">
-          <el-icon><UploadFilled /></el-icon>
+          <el-icon><Upload /></el-icon>
           <template #title>固件升级</template>
         </el-menu-item>
         <el-menu-item index="/resource">
@@ -36,7 +36,7 @@
           <template #title>设备统计</template>
         </el-menu-item>
         <el-menu-item index="/device-resource">
-          <el-icon><Odometer /></el-icon>
+          <el-icon><DataAnalysis /></el-icon>
           <template #title>设备资源</template>
         </el-menu-item>
         <el-menu-item index="/monitoring">
@@ -45,23 +45,23 @@
         </el-menu-item>
 
         <el-menu-item index="/dhcp">
-          <el-icon><Connection /></el-icon>
+          <el-icon><Link /></el-icon>
           <template #title>DHCP分配</template>
         </el-menu-item>
         <el-menu-item index="/network-tools">
-          <el-icon><Position /></el-icon>
+          <el-icon><Operation /></el-icon>
           <template #title>网络工具</template>
         </el-menu-item>
         <el-menu-item index="/serial-tools">
-          <el-icon><SetUp /></el-icon>
+          <el-icon><Connection /></el-icon>
           <template #title>串口工具</template>
         </el-menu-item>
         <el-menu-item index="/log">
-          <el-icon><Document /></el-icon>
+          <el-icon><Notebook /></el-icon>
           <template #title>日志管理</template>
         </el-menu-item>
         <el-menu-item index="/local-info">
-          <el-icon><Place /></el-icon>
+          <el-icon><InfoFilled /></el-icon>
           <template #title>本地信息</template>
         </el-menu-item>
 
@@ -98,7 +98,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Expand, Fold, Monitor, TrendCharts, Odometer, View, Place, Connection, Document, Position, SetUp, UploadFilled, Setting } from '@element-plus/icons-vue'
+import { Expand, Fold, Cpu, TrendCharts, DataAnalysis, View, Link, Operation, Connection, Notebook, InfoFilled, Upload, Setting } from '@element-plus/icons-vue'
 import { useTheme } from '../composables/useTheme'
 import type { ThemeType } from '../composables/useTheme'
 
@@ -164,6 +164,7 @@ watch(
   overflow: hidden;
   transition: all var(--duration-fast) var(--ease-out-expo);
   position: relative;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
 }
 
 .el-menu-vertical-demo .el-menu-item:hover {
