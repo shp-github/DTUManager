@@ -18,7 +18,10 @@ let LOGS_DIR = ''
 
 function getLogsDir(): string {
     if (!LOGS_DIR) {
-        LOGS_DIR = path.join(process.env.APP_ROOT || process.cwd(), 'logs')
+        // 打包后 asar 只读，改用 userData；开发环境用项目目录
+        LOGS_DIR = app.isPackaged
+            ? path.join(app.getPath('userData'), 'logs')
+            : path.join(process.env.APP_ROOT || process.cwd(), 'logs')
     }
     return LOGS_DIR
 }
