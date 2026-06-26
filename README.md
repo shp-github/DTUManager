@@ -100,7 +100,7 @@ yarn install
 首先执行 
 npm run build
 然后执行
-build:win
+npm run build:win
 
 
 使用 electron-builder（推荐）

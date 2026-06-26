@@ -37,13 +37,13 @@ export function getWifiLevel(rssi: number): number {
 export function getWifiIcon(rssi: number): string {
   const level = getWifiLevel(rssi)
   if (level === 0) return ''
-  return `/wifi/${level}.svg`
+  return `wifi/${level}.svg`
 }
 
 export function getNetworkIcon(networkType: string): string {
   const map: Record<string, string> = {
-    ETH: '/network/ethernet.svg',
-    WiFi: '/network/wifi.svg',
+    ETH: 'network/ethernet.svg',
+    WiFi: 'network/wifi.svg',
   }
   return map[networkType] || ''
 }

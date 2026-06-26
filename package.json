@@ -71,8 +71,7 @@
       "target": ["nsis", "zip"],
       "icon": "public/1.png",
       "certificateFile": "certs/cert.pfx",
-      "certificatePassword": "2948299576",
-      "timeStampServer": ""
+      "certificatePassword": "2948299576"
     },
     "nsis": {
       "oneClick": false,
