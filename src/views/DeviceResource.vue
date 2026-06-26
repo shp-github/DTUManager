@@ -653,3 +653,39 @@ onBeforeUnmount(() => {
   color: #333;
 }
 </style>
+
+<!-- 暗夜模式适配 -->
+<style>
+html.dark .resource-search {
+  background: #1e1e1e;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+html.dark .resource-search .el-input__wrapper {
+  background: #2a2a2a !important;
+  border-color: #444 !important;
+  box-shadow: none !important;
+}
+html.dark .resource-search .el-input__wrapper:hover {
+  border-color: #58a6ff !important;
+}
+html.dark .resource-search .el-input__wrapper.is-focus {
+  border-color: #58a6ff !important;
+  box-shadow: 0 0 0 2px rgba(88,166,255,0.2) !important;
+}
+html.dark .resource-search .el-input__inner {
+  color: #e0e0e0 !important;
+}
+html.dark .resource-search .el-radio-button__inner {
+  background: #2a2a2a !important;
+  border-color: #444 !important;
+  color: #a0aec0 !important;
+}
+html.dark .resource-search .el-radio-button__original-radio:checked + .el-radio-button__inner {
+  background: rgba(88,166,255,0.2) !important;
+  border-color: #58a6ff !important;
+  color: #58a6ff !important;
+}
+html.dark .device-count {
+  color: #a0aec0;
+}
+</style>
