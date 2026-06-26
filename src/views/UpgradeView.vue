@@ -9,23 +9,21 @@
       <div class="top-actions">
         <el-tag type="warning" v-if="!selectedFile" size="large">未选择固件</el-tag>
         <el-tag type="warning" v-if="selectedDeviceIds.length === 0" size="large">未选择设备</el-tag>
-        <el-button
-            type="primary"
-            size="large"
+        <button
+            class="lumina-btn"
             :disabled="!selectedFile || selectedDeviceIds.length === 0 || upgrading"
-            :loading="upgrading"
             @click="startUpgrade"
         >
+          <span v-if="upgrading" class="lumina-spinner"></span>
           {{ upgrading ? '升级中...' : `开始升级 (${selectedDeviceIds.length}台)` }}
-        </el-button>
-        <el-button
+        </button>
+        <button
             v-if="upgrading"
-            size="large"
-            type="danger"
+            class="lumina-btn lumina-btn--warning"
             @click="cancelUpgrade"
         >
           取消
-        </el-button>
+        </button>
       </div>
     </div>
 
@@ -63,7 +61,7 @@
             <span class="file-name">{{ selectedFile.name }}</span>
             <span class="file-size">{{ formatFileSize(selectedFile.size) }}</span>
           </div>
-          <el-button type="danger" size="small" text @click="clearFile">移除</el-button>
+          <button class="lumina-btn lumina-btn--ghost lumina-btn--sm" @click="clearFile">移除</button>
         </div>
 
         <div v-else class="file-empty-hint">
@@ -463,6 +461,14 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+  overflow: visible;
+  padding: 4px 0;
+}
+
+.top-actions .lumina-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 /* 左右分栏 */

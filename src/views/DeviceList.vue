@@ -404,8 +404,8 @@ onMounted(() => {
 }
 
 :deep(.el-checkbox__inner) {
-  border-color: rgba(255,255,255,0.25) !important;
-  background: rgba(255,255,255,0.05) !important;
+  border-color: rgba(255,255,255,0.35) !important;
+  background: rgba(255,255,255,0.08) !important;
 }
 :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
   background: #3b82f6 !important;

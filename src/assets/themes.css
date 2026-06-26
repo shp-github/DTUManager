@@ -99,6 +99,16 @@ html:not(.dark) .el-table .el-button--small:hover {
   transform: none !important;
   box-shadow: none !important;
 }
+/* 亮色复选框恢复默认可见 */
+html:not(.dark) .dtu-list-container .el-checkbox__inner {
+  border-color: #dcdfe6 !important;
+  background: #fff !important;
+}
+html:not(.dark) .dtu-list-container .el-checkbox__input.is-checked .el-checkbox__inner {
+  background: var(--el-color-primary) !important;
+  border-color: var(--el-color-primary) !important;
+  box-shadow: none !important;
+}
 /* 亮色对话框 */
 html:not(.dark) .el-dialog {
   background: #fff !important;

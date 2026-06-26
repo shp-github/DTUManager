@@ -20,7 +20,27 @@ interface DeviceStatus {
 
 const deviceMap = ref<Map<string, DeviceStatus>>(new Map())
 
+// 搜索 & 筛选
+const searchText = ref('')
+const networkTypeFilter = ref('')
+
 const devices = computed(() => Array.from(deviceMap.value.values()))
+
+const filteredDevices = computed(() => {
+  let list = devices.value
+  if (searchText.value) {
+    const kw = searchText.value.toLowerCase()
+    list = list.filter(d =>
+        (d.deviceId && d.deviceId.toLowerCase().includes(kw)) ||
+        (d.clientId && d.clientId.toLowerCase().includes(kw)) ||
+        (d.ip && d.ip.toLowerCase().includes(kw))
+    )
+  }
+  if (networkTypeFilter.value) {
+    list = list.filter(d => d.network === networkTypeFilter.value)
+  }
+  return list
+})
 
 // 格式化运行时间
 const formatUptime = (seconds: number) => {
@@ -116,13 +136,29 @@ onBeforeUnmount(() => {
   <div class="device-resource">
     <h2 class="page-title">设备资源</h2>
 
-    <div v-if="devices.length === 0" class="empty-state">
+    <!-- 搜索栏 -->
+    <div class="resource-search">
+      <el-input
+          v-model="searchText"
+          placeholder="搜索设备号 / 名称 / IP"
+          clearable
+          class="search-input"
+      />
+      <el-radio-group v-model="networkTypeFilter" size="default">
+        <el-radio-button value="">全部</el-radio-button>
+        <el-radio-button value="ETH">ETH</el-radio-button>
+        <el-radio-button value="WiFi">WiFi</el-radio-button>
+      </el-radio-group>
+      <span class="device-count">共 {{ filteredDevices.length }} 台设备</span>
+    </div>
+
+    <div v-if="filteredDevices.length === 0" class="empty-state">
       <div class="empty-icon">📡</div>
-      <p class="empty-text">等待设备上报资源信息...</p>
+      <p class="empty-text">{{ devices.length === 0 ? '等待设备上报资源信息...' : '没有匹配的设备' }}</p>
       <p class="empty-hint">订阅主题: /dev/status/#</p>
     </div>
 
-    <div v-for="device in devices" :key="device.deviceId" class="device-section">
+    <div v-for="device in filteredDevices" :key="device.deviceId" class="device-section">
       <!-- 设备标题 -->
       <div class="device-header">
         <div class="device-title">
@@ -300,6 +336,45 @@ onBeforeUnmount(() => {
   font-weight: 700;
   color: #333;
   margin: 0 0 14px 0;
+}
+
+/* 搜索栏 */
+.resource-search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.search-input {
+  width: 260px;
+}
+
+.resource-search :deep(.el-input__wrapper) {
+  border: 1px solid #c0c4cc;
+  box-shadow: 0 0 0 1px rgba(59,130,246,0.1);
+  background: #fafbfc;
+  border-radius: 8px;
+}
+.resource-search :deep(.el-input__wrapper:hover) {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+}
+.resource-search :deep(.el-input__wrapper.is-focus) {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
+}
+
+.device-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #606266;
+  margin-left: auto;
 }
 
 /* 空状态 */

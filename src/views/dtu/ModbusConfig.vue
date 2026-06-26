@@ -321,4 +321,43 @@ function copyMapping(cmd: any, index: number) {
 .el-table-column label {
   font-size: 13px;
 }
+
+/* 输入框/下拉框增强 */
+.modbus-card :deep(.el-input__wrapper) {
+  border: 1px solid #c0c4cc;
+  box-shadow: 0 0 0 1px rgba(59,130,246,0.15);
+  background: #fafbfc;
+}
+.modbus-card :deep(.el-input__wrapper:hover) {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
+}
+.modbus-card :deep(.el-input__wrapper.is-focus) {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.2), 0 0 12px rgba(59,130,246,0.1);
+}
+.modbus-card :deep(.el-input__inner) {
+  font-size: 15px;
+  font-weight: 500;
+}
+</style>
+
+<!-- 暗夜模式适配 -->
+<style>
+html.dark .modbus-card .el-input__wrapper {
+  background: #2a2a2a !important;
+  border-color: #444;
+  box-shadow: 0 0 0 1px rgba(88,166,255,0.1);
+}
+html.dark .modbus-card .el-input__wrapper:hover {
+  border-color: #58a6ff;
+  box-shadow: 0 0 0 2px rgba(88,166,255,0.2);
+}
+html.dark .modbus-card .el-input__wrapper.is-focus {
+  border-color: #58a6ff;
+  box-shadow: 0 0 0 3px rgba(88,166,255,0.2), 0 0 12px rgba(88,166,255,0.1);
+}
+html.dark .modbus-card .el-input__inner {
+  color: #e0e0e0;
+}
 </style>

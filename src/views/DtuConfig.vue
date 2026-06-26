@@ -6,31 +6,31 @@
         <h2 class="title">DTU 配置 - {{ device?.name }} ————{{ device?.id }}</h2>
         <div class="actions">
 
-          <el-button class="action-btn" type="default" @click="goBack">
+          <button class="lumina-btn" @click="goBack">
             <el-icon><ArrowLeft /></el-icon>
             返回
-          </el-button>
+          </button>
 
           <div class="steps">
-            <div class="step" @click="connectMqtt">
+            <button class="lumina-btn" @click="connectMqtt">
               通知连接
-            </div>
+            </button>
             <div class="arrow">→</div>
 
-            <div class="step" @click="loadDeviceConfig">
+            <button class="lumina-btn" @click="loadDeviceConfig">
               读取配置
-            </div>
+            </button>
             <div class="arrow">→</div>
 
-            <div class="step" @click="saveConfig">
+            <button class="lumina-btn lumina-btn--success" @click="saveConfig">
               <el-icon><DocumentAdd /></el-icon>
               保存
-            </div>
+            </button>
             <div class="arrow">→</div>
 
-            <div class="step" @click="reboot">
+            <button class="lumina-btn lumina-btn--warning" @click="reboot">
               重启设备
-            </div>
+            </button>
           </div>
 
         </div>
@@ -410,17 +410,17 @@ const saveConfig = async () => {
 .actions {
   display: flex;
   gap: 14px;
+  align-items: center;
+  /* Lumina按钮hover上浮空间 */
+  overflow: visible;
+  padding: 4px 0;
 }
 
-.action-btn {
-  display: flex;
+/* lumina-btn含图标时保持flex对齐 */
+.actions .lumina-btn {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 18px;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 600;
+  gap: 5px;
 }
 
 /* 固定 Tab Header */
@@ -482,22 +482,7 @@ const saveConfig = async () => {
 .steps {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.step {
-  padding: 6px 12px;
-  background-color: #409eff;
-  color: white;
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  transition: background-color 0.2s;
-}
-
-.step:hover {
-  background-color: #66b1ff;
+  gap: 6px;
 }
 
 .arrow {
@@ -506,4 +491,45 @@ const saveConfig = async () => {
   color: #606266;
 }
 
+</style>
+
+<!-- 暗夜模式适配 -->
+<style>
+html.dark .dtu-config-container {
+  background: #121212;
+}
+
+html.dark .header-wrapper {
+  background: #1e1e1e;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+html.dark .header {
+  border-bottom-color: #333;
+}
+
+html.dark .title {
+  color: #e0e0e0;
+}
+
+html.dark .arrow {
+  color: #a0aec0;
+}
+
+html.dark .tabs-underline .el-tabs__header {
+  background: #1e1e1e;
+  border-bottom-color: #333;
+}
+
+html.dark .tabs-underline .el-tabs__item {
+  color: #a0aec0;
+}
+
+html.dark .tabs-underline .el-tabs__item.is-active {
+  color: #58a6ff;
+}
+
+html.dark .tabs-underline .el-tabs__item.is-active::after {
+  background-color: #58a6ff;
+}
 </style>

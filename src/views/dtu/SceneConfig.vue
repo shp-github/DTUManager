@@ -406,3 +406,52 @@ const toggleSelectAll = (scene: any) => {
 
 
 </style>
+
+<!-- 暗夜模式适配 -->
+<style>
+html.dark .scene-card {
+  background: #1e1e1e;
+  border-color: #333;
+}
+
+html.dark .condition-box,
+html.dark .timer-box,
+html.dark .switch-box {
+  border-color: #444;
+}
+
+html.dark .condition-item,
+html.dark .timer-item {
+  border-bottom-color: #333;
+}
+
+html.dark .title,
+html.dark .area-title {
+  color: #e0e0e0;
+}
+
+html.dark .scene-config-container {
+  color: #c0c0c0;
+}
+
+html.dark .switch-label {
+  color: #c0c0c0;
+}
+
+html.dark .scene-card .el-input__wrapper {
+  background: #2a2a2a !important;
+  border-color: #444;
+  box-shadow: 0 0 0 1px rgba(88,166,255,0.1);
+}
+html.dark .scene-card .el-input__wrapper:hover {
+  border-color: #58a6ff;
+  box-shadow: 0 0 0 2px rgba(88,166,255,0.2);
+}
+html.dark .scene-card .el-input__wrapper.is-focus {
+  border-color: #58a6ff;
+  box-shadow: 0 0 0 3px rgba(88,166,255,0.2), 0 0 12px rgba(88,166,255,0.1);
+}
+html.dark .scene-card .el-input__inner {
+  color: #e0e0e0;
+}
+</style>
