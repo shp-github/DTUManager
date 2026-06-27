@@ -39,6 +39,10 @@ interface ElectronAPI {
   saveFile: (fileName: string, fileData: ArrayBuffer) => Promise<{ success: boolean; error?: string; downloadUrl?: string }>
   getFileList: () => Promise<any>
 
+  // 配置导出/导入
+  exportConfigFile: (jsonStr: string) => Promise<{ success: boolean; path?: string; error?: string }>
+  importConfigFile: () => Promise<{ success: boolean; data?: string; error?: string }>
+
   // 升级
   sendUpgradeCommand: (deviceIp: string, fileName: string, serverInfo: { port: number; fileSize: number }) => Promise<{ success: boolean; error?: string; downloadUrl?: string }>
 

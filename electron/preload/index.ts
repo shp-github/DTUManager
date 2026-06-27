@@ -33,6 +33,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     saveFile: (fileName, fileData) => ipcRenderer.invoke('save-file', { fileName, fileData }),
     getFileList: () => ipcRenderer.invoke('get-file-list'),
 
+    // 配置导出/导入
+    exportConfigFile: (jsonStr: string) => ipcRenderer.invoke('export-config-file', jsonStr),
+    importConfigFile: () => ipcRenderer.invoke('import-config-file'),
+
     sendUpgradeCommand: (deviceIp, fileName, serverInfo) => ipcRenderer.invoke('send-upgrade-command', { deviceIp, fileName, serverInfo }),
 
     connectMqtt: (deviceIp) => ipcRenderer.invoke('connect-mqtt', deviceIp),

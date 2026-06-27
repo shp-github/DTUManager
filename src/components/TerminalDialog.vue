@@ -259,6 +259,7 @@ const onDialogOpen = () => {
     addTerminalLog('info', '支持的主题:')
     addTerminalLog('info', `  订阅: /dev/coo/${props.currentDevice.id}, /dev/ota/${props.currentDevice.id}, /dev/cmd/${props.currentDevice.id}`)
     addTerminalLog('info', `  发布: /server/coo/${props.currentDevice.id}`)
+    connectMqtt(props.currentDevice)
   }
   toggleTerminalConnection()
 }

@@ -33,6 +33,11 @@
             </button>
           </div>
 
+          <button class="lumina-btn lumina-btn--info" @click="showConfigDialog = true">
+            <el-icon><View /></el-icon>
+            查看配置
+          </button>
+
         </div>
 
       </div>
@@ -62,15 +67,46 @@
         <SceneConfig v-show="activeTab==='scene'" v-model="allConfig.scene" />
     </div>
 
+    <!-- 配置查看弹窗 -->
+    <el-dialog v-model="showConfigDialog" title="设备配置数据" width="780px" :close-on-click-modal="false" @open="onDialogOpen">
+      <div class="config-json-wrapper">
+        <div class="ace-editor-container" ref="aceEditorRef"></div>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <button class="lumina-btn" @click="copyConfig">
+            <el-icon><DocumentCopy /></el-icon>
+            复制
+          </button>
+          <button class="lumina-btn" @click="exportConfig">
+            <el-icon><Download /></el-icon>
+            导出
+          </button>
+          <button class="lumina-btn" @click="importConfig">
+            <el-icon><Upload /></el-icon>
+            导入
+          </button>
+          <button class="lumina-btn lumina-btn--success" @click="applyConfigEdit">
+            <el-icon><DocumentAdd /></el-icon>
+            应用
+          </button>
+          <button class="lumina-btn" @click="showConfigDialog = false">关闭</button>
+        </div>
+      </template>
+    </el-dialog>
 
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onBeforeUnmount, h, defineComponent } from 'vue'
+import { ref, reactive, nextTick, onMounted, onBeforeUnmount, h, defineComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElSelect, ElOption } from 'element-plus'
-import { ArrowLeft, DocumentAdd } from '@element-plus/icons-vue'
+import { ArrowLeft, DocumentAdd, View, DocumentCopy, Download, Upload } from '@element-plus/icons-vue'
+import ace from 'ace-builds'
+import 'ace-builds/src-noconflict/mode-json'
+import 'ace-builds/src-noconflict/theme-twilight'
+import 'ace-builds/src-noconflict/ext-language_tools'
 
 import BasicConfig from './dtu/BasicConfig.vue'
 import NetworkChannelConfig from './dtu/NetworkChannelConfig.vue'
@@ -84,6 +120,50 @@ const device = ref(props.device)
 
 const router = useRouter()
 const activeTab = ref('basic')
+
+// 配置弹窗
+const showConfigDialog = ref(false)
+
+// Ace Editor
+const aceEditorRef = ref<HTMLDivElement | null>(null)
+let aceEditor: ace.Ace.Editor | null = null
+
+const initAceEditor = () => {
+  if (!aceEditorRef.value || aceEditor) return
+  aceEditor = ace.edit(aceEditorRef.value, {
+    mode: 'ace/mode/json',
+    theme: 'ace/theme/twilight',
+    fontSize: 14,
+    showPrintMargin: false,
+    showGutter: true,
+    highlightActiveLine: true,
+    tabSize: 2,
+    useSoftTabs: true,
+    wrap: true,
+    minLines: 25,
+    maxLines: 40,
+  })
+  aceEditor.setValue(JSON.stringify(allConfig, null, 2), -1)
+  aceEditor.clearSelection()
+}
+
+// 弹窗打开时同步最新配置到编辑器
+const onDialogOpen = () => {
+  nextTick(() => {
+    if (!aceEditor) {
+      initAceEditor()
+    } else {
+      aceEditor.setValue(JSON.stringify(allConfig, null, 2), -1)
+      aceEditor.clearSelection()
+      aceEditor.resize()
+    }
+  })
+}
+
+// 获取编辑器当前内容
+const getEditorValue = (): string => {
+  return aceEditor ? aceEditor.getValue() : ''
+}
 
 // 配置对象
 const allConfig = reactive({
@@ -208,6 +288,7 @@ const handleMqttMessage = (event: any, data: any) => {
     return
   }
 
+    console.log(JSON.stringify(msg, null, 2))
     console.log("接收设备端配置:", msg)
 
     // flag 用于区分模块
@@ -250,16 +331,22 @@ const handleMqttMessage = (event: any, data: any) => {
         //console.log("更新 networkChannels 配置成功:", allConfig.networkChannels)
         break
 
-      case "modbus":
-        // modbus 采集表
-        allConfig.modbus = msg.data || {}
+      case "modbus": {
+        // modbus 采集表（兼容 msg.data 嵌套和扁平两种结构）
+        const raw = msg.data || msg
+        const { flag: _f, type: _t, ...modbusData } = raw
+        allConfig.modbus = modbusData
         console.log("更新 modbus 配置成功:", allConfig.modbus)
         break
+      }
 
-      case "scene":
-        allConfig.scene = msg.data || {}
+      case "scene": {
+        const raw = msg.data || msg
+        const { flag: _f, type: _t, ...sceneData } = raw
+        allConfig.scene = sceneData
         console.log("更新 scene 配置成功:", allConfig.scene)
         break
+      }
 
       default:
         console.warn("未知 flag:", flag)
@@ -295,6 +382,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   clearInterval(runtimeTimer)
   window.electronAPI.off('menu-action', () => {})
+  if (aceEditor) {
+    aceEditor.destroy()
+    aceEditor = null
+  }
 })
 
 
@@ -307,6 +398,64 @@ const reboot = () => {
 
 // 返回
 const goBack = () => router.push({ name: 'DeviceList' })
+
+// 复制配置JSON
+const copyConfig = async () => {
+  try {
+    await navigator.clipboard.writeText(getEditorValue())
+    ElMessage.success('已复制到剪贴板')
+  } catch {
+    ElMessage.error('复制失败')
+  }
+}
+
+// 应用编辑后的JSON到配置
+const applyConfigEdit = () => {
+  try {
+    const parsed = JSON.parse(getEditorValue())
+    // 合并解析后的数据到 allConfig，保留已有键
+    for (const key of Object.keys(allConfig)) {
+      if (parsed[key] !== undefined) {
+        ;(allConfig as any)[key] = parsed[key]
+      }
+    }
+    ElMessage.success('配置已应用')
+  } catch (e: any) {
+    ElMessage.error('JSON 格式错误: ' + e.message)
+  }
+}
+
+// 导出配置到本地 JSON 文件
+const exportConfig = async () => {
+  try {
+    const jsonStr = JSON.stringify(allConfig, null, 2)
+    const result = await window.electronAPI.exportConfigFile(jsonStr)
+    if (result.success) {
+      ElMessage.success('配置已导出')
+    }
+  } catch (e: any) {
+    ElMessage.error('导出失败: ' + (e.message || e))
+  }
+}
+
+// 从本地 JSON 文件导入配置
+const importConfig = async () => {
+  try {
+    const result = await window.electronAPI.importConfigFile()
+    if (!result.success || !result.data) return
+    const parsed = JSON.parse(result.data)
+    // 合并解析后的数据到 allConfig
+    for (const key of Object.keys(allConfig)) {
+      if (parsed[key] !== undefined) {
+        ;(allConfig as any)[key] = parsed[key]
+      }
+    }
+    ElMessage.success('配置已导入')
+  } catch (e: any) {
+    ElMessage.error('导入失败: ' + (e.message || e))
+  }
+}
+
 // 保存配置
 const saveConfig = async () => {
   if (!device.value) return
@@ -532,4 +681,26 @@ html.dark .tabs-underline .el-tabs__item.is-active {
 html.dark .tabs-underline .el-tabs__item.is-active::after {
   background-color: #58a6ff;
 }
+
+/* 配置弹窗 footer 按钮间距 */
+.dialog-footer {
+  display: flex;
+  gap: 14px;
+  justify-content: flex-end;
+}
+
+/* 配置弹窗 JSON 编辑器样式 */
+.config-json-wrapper {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ace-editor-container {
+  height: 55vh;
+  border: 1px solid #444;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Ace Editor 暗夜主题已自带深色背景，无需额外适配 */
 </style>

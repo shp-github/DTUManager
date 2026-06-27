@@ -58,6 +58,10 @@ declare global {
             saveFile: (fileName: string, fileData: ArrayBuffer) => Promise<FileOperationResult>
             getFileList: () => Promise<FileListResult>
 
+            // 配置导出/导入
+            exportConfigFile: (jsonStr: string) => Promise<{ success: boolean; path?: string; error?: string }>
+            importConfigFile: () => Promise<{ success: boolean; data?: string; error?: string }>
+
 
             // 设备升级
             sendUpgradeCommand: (

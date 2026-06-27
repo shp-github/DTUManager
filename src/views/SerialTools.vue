@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, nextTick, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 
 interface SerialPortInfo {
   path: string
@@ -29,6 +29,31 @@ const autoScroll = ref(true)
 const terminalRef = ref<HTMLDivElement | null>(null)
 const receiveHex = ref(false)  // 接收显示模式：true=HEX, false=ASCII（默认ASCII）
 let logId = 0
+
+// ========== 搜索功能 ==========
+const searchVisible = ref(false)
+const searchQuery = ref('')
+const currentMatchIndex = ref(0)
+const searchInputRef = ref<HTMLInputElement | null>(null)
+
+// 匹配的日志数组索引列表
+const searchMatches = computed(() => {
+  if (!searchQuery.value.trim()) return []
+  const query = searchQuery.value.toLowerCase()
+  return logs.value
+    .map((log, index) => log.data.toLowerCase().includes(query) ? index : -1)
+    .filter(i => i !== -1)
+})
+
+// 当前匹配对应的 log id
+const currentMatchLogId = computed(() => {
+  if (searchMatches.value.length === 0 || currentMatchIndex.value >= searchMatches.value.length) return null
+  const logIndex = searchMatches.value[currentMatchIndex.value]
+  return logs.value[logIndex]?.id ?? null
+})
+
+// 搜索条件变化时重置索引
+watch(searchQuery, () => { currentMatchIndex.value = 0 })
 
 const baudRates = [9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600]
 
@@ -203,6 +228,78 @@ const clearLogs = () => {
   logId = 0
 }
 
+// ========== 搜索相关方法 ==========
+
+// HTML 转义
+const escapeHtml = (text: string): string => {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+// 高亮文本（支持区分当前匹配）
+const getHighlightedHtml = (text: string, isActiveLine: boolean): string => {
+  const escaped = escapeHtml(text)
+  if (!searchQuery.value.trim()) return escaped
+  const escapedQuery = searchQuery.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = new RegExp(`(${escapedQuery})`, 'gi')
+  const cls = isActiveLine ? 'search-highlight-current' : 'search-highlight'
+  return escaped.replace(regex, `<mark class="${cls}">$1</mark>`)
+}
+
+// 打开搜索栏
+const openSearch = () => {
+  searchVisible.value = true
+  nextTick(() => { searchInputRef.value?.focus() })
+}
+
+// 关闭搜索栏
+const closeSearch = () => {
+  searchVisible.value = false
+  searchQuery.value = ''
+  currentMatchIndex.value = 0
+}
+
+// 滚动到当前匹配行
+const scrollToCurrentMatch = () => {
+  if (searchMatches.value.length === 0) return
+  const logId = currentMatchLogId.value
+  if (logId != null) {
+    nextTick(() => {
+      const el = document.querySelector(`[data-log-id="${logId}"]`)
+      el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+  }
+}
+
+// 上一个匹配
+const prevMatch = () => {
+  if (searchMatches.value.length === 0) return
+  currentMatchIndex.value = (currentMatchIndex.value - 1 + searchMatches.value.length) % searchMatches.value.length
+  scrollToCurrentMatch()
+}
+
+// 下一个匹配
+const nextMatch = () => {
+  if (searchMatches.value.length === 0) return
+  currentMatchIndex.value = (currentMatchIndex.value + 1) % searchMatches.value.length
+  scrollToCurrentMatch()
+}
+
+// 键盘事件：Ctrl+F 打开搜索，Esc 关闭
+const onKeydown = (e: KeyboardEvent) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+    e.preventDefault()
+    openSearch()
+    return
+  }
+  if (e.key === 'Escape' && searchVisible.value && document.activeElement === searchInputRef.value) {
+    closeSearch()
+  }
+}
+
 // 接收串口数据
 const handleSerialData = (_event: any, data: any) => {
   // 调试：打印实际接收到的数据
@@ -230,9 +327,11 @@ const handleSerialData = (_event: any, data: any) => {
 onMounted(() => {
   refreshPorts()
   window.electronAPI.on('serial-data', handleSerialData)
+  window.addEventListener('keydown', onKeydown)
 })
 
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
   window.electronAPI.off('serial-data', handleSerialData)
   if (isConnected.value) {
     window.electronAPI.invoke('serial-close')
@@ -279,15 +378,51 @@ onBeforeUnmount(() => {
           <span class="receive-mode-hint">{{ receiveHex ? '十六进制显示' : 'ASCII 显示' }}</span>
         </div>
 
+        <!-- 搜索栏（Ctrl+F 唤起） -->
+        <div v-if="searchVisible" class="search-bar">
+          <div class="search-input-wrap">
+            <svg class="search-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+            </svg>
+            <input
+              ref="searchInputRef"
+              v-model="searchQuery"
+              type="text"
+              class="search-input"
+              placeholder="查找..."
+              @keydown.enter="nextMatch"
+              @keydown.escape="closeSearch"
+            />
+          </div>
+          <span class="search-count" v-if="searchQuery.trim()">
+            {{ searchMatches.length > 0 ? `${currentMatchIndex + 1} / ${searchMatches.length}` : '0 / 0' }}
+          </span>
+          <button class="search-btn" @click="prevMatch" :disabled="searchMatches.length === 0" title="上一个 (Shift+Enter)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="18 15 12 9 6 15"/>
+            </svg>
+          </button>
+          <button class="search-btn" @click="nextMatch" :disabled="searchMatches.length === 0" title="下一个 (Enter)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <button class="search-btn search-close-btn" @click="closeSearch" title="关闭 (Esc)">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
         <!-- 终端 -->
         <div class="terminal" ref="terminalRef">
           <div v-if="logs.length === 0" class="empty-hint">串口数据将在此显示...</div>
-          <div v-for="log in logs" :key="log.id" class="log-line" :class="'log-' + log.type">
+          <div v-for="log in logs" :key="log.id" :data-log-id="log.id" class="log-line" :class="['log-' + log.type, { 'log-line-active': currentMatchLogId === log.id }]">
             <span class="log-time">[{{ log.timestamp }}]</span>
             <span class="log-tag" v-if="log.type === 'send'">[TX]</span>
             <span class="log-tag" v-else-if="log.type === 'receive'">[RX]</span>
             <span class="log-tag" v-else>[SYS]</span>
-            <span class="log-data">{{ log.data }}</span>
+            <span class="log-data" v-html="getHighlightedHtml(log.data, currentMatchLogId === log.id)"></span>
           </div>
         </div>
 
@@ -486,5 +621,105 @@ onBeforeUnmount(() => {
   word-break: break-all;
   color: #409eff;
   font-family: 'Consolas', monospace;
+}
+
+/* ========== 搜索栏 ========== */
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: #2d2d2d;
+  border-bottom: 1px solid #3c3c3c;
+  animation: search-bar-in 0.15s ease-out;
+}
+
+@keyframes search-bar-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.search-input-wrap {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  background: #3c3c3c;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 2px 6px;
+  gap: 4px;
+}
+
+.search-input-wrap:focus-within {
+  border-color: #409eff;
+}
+
+.search-icon {
+  color: #888;
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #d4d4d4;
+  font-size: 12px;
+  padding: 3px 0;
+  min-width: 0;
+}
+
+.search-input::placeholder { color: #777; }
+
+.search-count {
+  font-size: 11px;
+  color: #999;
+  white-space: nowrap;
+  min-width: 50px;
+  text-align: center;
+  user-select: none;
+}
+
+.search-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #ccc;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.search-btn:hover { background: #444; }
+.search-btn:disabled { color: #555; background: transparent; cursor: default; }
+
+.search-close-btn:hover { background: rgba(245, 108, 108, 0.2); color: #f56c6c; }
+
+/* 搜索高亮 */
+:deep(mark.search-highlight) {
+  background: rgba(255, 204, 0, 0.4);
+  color: #fff;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+:deep(mark.search-highlight-current) {
+  background: rgba(255, 152, 0, 0.65);
+  color: #fff;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* 当前匹配行高亮 */
+.log-line-active {
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 2px solid #409eff;
+  padding-left: 10px !important;
 }
 </style>

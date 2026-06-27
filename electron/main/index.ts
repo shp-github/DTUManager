@@ -1,4 +1,4 @@
-import {app, BrowserWindow, globalShortcut, ipcMain, Menu, shell} from 'electron'
+import {app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, shell} from 'electron'
 import {createRequire} from 'node:module'
 import {fileURLToPath} from 'node:url'
 import path from 'path'
@@ -829,6 +829,41 @@ ipcMain.handle('get-file-list', async () => {
     }
 })
 
+// 导出/导入配置 JSON
+ipcMain.handle('export-config-file', async (_event, jsonStr: string) => {
+    try {
+        const { canceled, filePath } = await dialog.showSaveDialog({
+            title: '导出设备配置',
+            defaultPath: 'dtu-config.json',
+            filters: [{ name: 'JSON 文件', extensions: ['json'] }]
+        })
+        if (canceled || !filePath) return { success: false }
+        fs.writeFileSync(filePath, jsonStr, 'utf-8')
+        console.log(`✅ 配置已导出: ${filePath}`)
+        return { success: true, path: filePath }
+    } catch (error: any) {
+        console.error('❌ 导出配置失败:', error)
+        return { success: false, error: error.message }
+    }
+})
+
+ipcMain.handle('import-config-file', async () => {
+    try {
+        const { canceled, filePaths } = await dialog.showOpenDialog({
+            title: '导入设备配置',
+            filters: [{ name: 'JSON 文件', extensions: ['json'] }],
+            properties: ['openFile']
+        })
+        if (canceled || filePaths.length === 0) return { success: false }
+        const content = fs.readFileSync(filePaths[0], 'utf-8')
+        console.log(`✅ 配置已导入: ${filePaths[0]}`)
+        return { success: true, data: content }
+    } catch (error: any) {
+        console.error('❌ 导入配置失败:', error)
+        return { success: false, error: error.message }
+    }
+})
+
 // 设备升级
 ipcMain.handle('send-upgrade-command', async (_event, { deviceIp, fileName, serverInfo }) => {
     if (!udpServer) {
@@ -1638,24 +1673,25 @@ ipcMain.handle('read-log-file', async (_event, { date, deviceId, protocol }: { d
 
 // =================== 窗口控制 IPC ===================
 
-ipcMain.on('window-minimize', () => {
-    win?.minimize()
+ipcMain.on('window-minimize', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.minimize()
 })
 
-ipcMain.on('window-maximize', () => {
-    if (win?.isMaximized()) {
-        win.unmaximize()
+ipcMain.on('window-maximize', (event) => {
+    const senderWin = BrowserWindow.fromWebContents(event.sender)
+    if (senderWin?.isMaximized()) {
+        senderWin?.unmaximize()
     } else {
-        win?.maximize()
+        senderWin?.maximize()
     }
 })
 
-ipcMain.on('window-close', () => {
-    win?.close()
+ipcMain.on('window-close', (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.close()
 })
 
-ipcMain.handle('window-is-maximized', () => {
-    return win?.isMaximized() ?? false
+ipcMain.handle('window-is-maximized', (event) => {
+    return BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false
 })
 
 // =================== 应用生命周期 ===================
@@ -1671,7 +1707,11 @@ app.whenReady().then(async () => {
 
     // 注册快捷键
     globalShortcut.register('CommandOrControl+Shift+I', () => {
-        win?.webContents.openDevTools()
+        win?.webContents.toggleDevTools()
+    })
+
+    globalShortcut.register('F12', () => {
+        win?.webContents.toggleDevTools()
     })
 
     globalShortcut.register('F5', () => {
