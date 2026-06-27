@@ -106,6 +106,15 @@ let dhcpServer: SimpleDHCPServer | null = null
 const preload = path.join(__dirname, '../preload/index.mjs')
 const indexHtml = path.join(RENDERER_DIST, 'index.html')
 
+// ----------------- 辅助：广播消息到所有窗口 -----------------
+function broadcastToAll(channel: string, ...args: any[]) {
+    BrowserWindow.getAllWindows().forEach(w => {
+        if (!w.isDestroyed()) {
+            w.webContents.send(channel, ...args)
+        }
+    })
+}
+
 // ----------------- 创建主窗口 -----------------
 function createWindow() {
     win = new BrowserWindow({
@@ -146,7 +155,7 @@ function createWindow() {
 
         // 窗口准备好后，通知渲染进程可以开始初始化DHCP选择器
         setTimeout(() => {
-            win?.webContents.send('app-ready');
+            broadcastToAll('app-ready');
         }, 1000);
 
     })
@@ -265,42 +274,42 @@ function setupDHCPEventListeners(server: SimpleDHCPServer) {
     // 监听服务器启动事件
     server.on('started', (status: any) => {
         console.log('🎉 DHCP服务器已启动');
-        win?.webContents.send('dhcp-server-started', status);
+        broadcastToAll('dhcp-server-started', status);
     });
 
     // 监听服务器停止事件
     server.on('stopped', () => {
         console.log('🛑 DHCP服务器已停止');
-        win?.webContents.send('dhcp-server-stopped');
+        broadcastToAll('dhcp-server-stopped');
     });
 
     // 监听状态变化
     server.on('status-changed', (status: any) => {
         console.log(`监听状态变化 ${JSON.stringify(status)}`)
         console.log(`监听状态变化 ${typeof status}`)
-        win?.webContents.send('dhcp-server-status', status);
+        broadcastToAll('dhcp-server-status', status);
     });
 
     // 监听IP分配事件
     server.on('ip-assigned', (data: any) => {
         console.log(`📡 IP分配: ${data.mac} -> ${data.ip}`);
-        win?.webContents.send('dhcp-device-registered', data);
+        broadcastToAll('dhcp-device-registered', data);
     });
 
     // 监听设备注册事件
     server.on('device-registered', (data: any) => {
-        win?.webContents.send('dhcp-device-registered', data);
+        broadcastToAll('dhcp-device-registered', data);
     });
 
     // 监听租约更新事件
     server.on('lease-updated', (data: any) => {
-        win?.webContents.send('dhcp-lease-updated', data);
+        broadcastToAll('dhcp-lease-updated', data);
     });
 
     // 监听错误事件
     server.on('error', (error: Error) => {
         console.error('❌ DHCP服务器错误:', error);
-        win?.webContents.send('dhcp-error', {
+        broadcastToAll('dhcp-error', {
             message: error.message,
             stack: error.stack
         });
@@ -565,22 +574,22 @@ async function startUDPServer() {
             // 监听UDP服务事件
             udpServer.on('device-discovered', (device) => {
                 console.log(`📱 发现新设备: ${device.name} (${device.ip})`)
-                win?.webContents.send('device-discovered', device)
+                broadcastToAll('device-discovered', device)
             })
 
             udpServer.on('device-offline', (deviceId) => {
                 console.log(`📱 设备离线: ${deviceId}`)
-                win?.webContents.send('device-offline', deviceId)
+                broadcastToAll('device-offline', deviceId)
             })
 
             udpServer.on('error', (err) => {
                 console.error('❌ UDP服务错误:', err)
-                win?.webContents.send('server-error', { service: 'UDP', error: err.message })
+                broadcastToAll('server-error', { service: 'UDP', error: err.message })
             })
 
             // 转发原始UDP消息到渲染进程
             udpServer.on('message-received', (data) => {
-                win?.webContents.send('udp-message-received', data)
+                broadcastToAll('udp-message-received', data)
                 // 写入日志
                 const deviceId = data.parsed?.id || data.ip || 'unknown'
                 const deviceName = data.parsed?.name || ''
@@ -606,18 +615,18 @@ async function startMQTTServer() {
             // 监听MQTT事件
             mqttServer.on('clientConnected', (clientInfo) => {
                 console.log(`📱 MQTT设备连接: ${clientInfo.id}`)
-                win?.webContents.send('mqtt-client-connected', clientInfo)
+                broadcastToAll('mqtt-client-connected', clientInfo)
             })
 
             mqttServer.on('clientDisconnected', (clientInfo) => {
                 console.log(`📱 MQTT设备断开: ${clientInfo.id}`)
-                win?.webContents.send('mqtt-client-disconnected', clientInfo)
+                broadcastToAll('mqtt-client-disconnected', clientInfo)
             })
 
             mqttServer.on('messagePublished', (message) => {
                 if (message.client) {
-                    win?.webContents.send('mqtt-message-published', message)
-                    win?.webContents.send('device-config-message', message)
+                    broadcastToAll('mqtt-message-published', message)
+                    broadcastToAll('device-config-message', message)
                     // 写入日志
                     const deviceId = message.client?.id || 'unknown'
                     const logContent = `topic=${message.topic} payload=${message.payload}`
@@ -627,7 +636,7 @@ async function startMQTTServer() {
 
             mqttServer.on('error', (err) => {
                 console.error('❌ MQTT服务错误:', err)
-                win?.webContents.send('server-error', { service: 'MQTT', error: err.message })
+                broadcastToAll('server-error', { service: 'MQTT', error: err.message })
             })
         } else {
             console.error('❌ MQTT服务器启动失败:', result.error)
@@ -756,8 +765,11 @@ ipcMain.handle('read-device-config', async (_event, device) => {
 // 打开子窗口
 ipcMain.handle('open-win', (_, arg) => {
     const childWindow = new BrowserWindow({
-        width: 800,
-        height: 600,
+        width: 1200,
+        height: 800,
+        title: 'DTU 上位机配置',
+        icon: 'public/1.png',
+        frame: false,
         webPreferences: {
             preload,
             nodeIntegration: false,
@@ -765,11 +777,19 @@ ipcMain.handle('open-win', (_, arg) => {
         },
     })
 
+    // 新窗口也隐藏菜单栏
+    childWindow.setMenu(null)
+
     if (VITE_DEV_SERVER_URL) {
         childWindow.loadURL(`${VITE_DEV_SERVER_URL}#${arg}`)
     } else {
         childWindow.loadFile(indexHtml, { hash: arg })
     }
+
+    // 页面加载完成后发送 app-ready
+    childWindow.webContents.on('did-finish-load', () => {
+        childWindow.webContents.send('app-ready')
+    })
 })
 
 // 文件操作
@@ -1159,10 +1179,10 @@ ipcMain.handle('network-server-start', async (_event, { host, port, protocol }: 
                 tcpServer = net.createServer((socket) => {
                     const clientAddr = `${socket.remoteAddress}:${socket.remotePort}`
                     tcpServerClients.push(socket)
-                    win?.webContents.send('network-data', { client: clientAddr, data: `[客户端连接] ${clientAddr}` })
+                    broadcastToAll('network-data', { client: clientAddr, data: `[客户端连接] ${clientAddr}` })
 
                     socket.on('data', (data: Buffer) => {
-                        win?.webContents.send('network-data', {
+                        broadcastToAll('network-data', {
                             hex: data.toString('hex'),
                             data: data.toString()
                         })
@@ -1170,11 +1190,11 @@ ipcMain.handle('network-server-start', async (_event, { host, port, protocol }: 
 
                     socket.on('close', () => {
                         tcpServerClients = tcpServerClients.filter(c => c !== socket)
-                        win?.webContents.send('network-data', { data: `[客户端断开] ${clientAddr}`, hex: '' })
+                        broadcastToAll('network-data', { data: `[客户端断开] ${clientAddr}`, hex: '' })
                     })
 
                     socket.on('error', (err: Error) => {
-                        win?.webContents.send('network-data', { data: `[客户端错误] ${err.message}`, hex: '' })
+                        broadcastToAll('network-data', { data: `[客户端错误] ${err.message}`, hex: '' })
                     })
                 })
 
@@ -1198,14 +1218,14 @@ ipcMain.handle('network-server-start', async (_event, { host, port, protocol }: 
             udpServer2.on('message', (msg: Buffer, rinfo: any) => {
                 // 记录来源，方便回复
                 networkTarget = { host: rinfo.address, port: rinfo.port }
-                win?.webContents.send('network-data', {
+                broadcastToAll('network-data', {
                     hex: msg.toString('hex'),
                     data: msg.toString()
                 })
             })
 
             udpServer2.on('error', (err: Error) => {
-                win?.webContents.send('network-data', { data: `[ERROR] ${err.message}`, hex: '' })
+                broadcastToAll('network-data', { data: `[ERROR] ${err.message}`, hex: '' })
             })
 
             return new Promise((resolve) => {
@@ -1267,7 +1287,7 @@ ipcMain.handle('network-tcp-connect', async (_event, { host, port, protocol }: {
                 })
 
                 tcpClient.on('data', (data: Buffer) => {
-                    win?.webContents.send('network-data', {
+                    broadcastToAll('network-data', {
                         hex: data.toString('hex'),
                         data: data.toString()
                     })
@@ -1279,13 +1299,13 @@ ipcMain.handle('network-tcp-connect', async (_event, { host, port, protocol }: {
                         resolved = true
                         resolve({ success: false, error: err.message })
                     }
-                    win?.webContents.send('network-data', { data: `[ERROR] ${err.message}`, hex: '' })
+                    broadcastToAll('network-data', { data: `[ERROR] ${err.message}`, hex: '' })
                 })
 
                 tcpClient.on('close', (hadErrorFlag: boolean) => {
                     // 只有异常关闭（非主动断开）才通知前端
                     if (!hadErrorFlag && !resolved) {
-                        win?.webContents.send('network-data', { data: '[连接已关闭]', hex: '' })
+                        broadcastToAll('network-data', { data: '[连接已关闭]', hex: '' })
                     }
                     tcpClient = null
                 })
@@ -1308,14 +1328,14 @@ ipcMain.handle('network-tcp-connect', async (_event, { host, port, protocol }: {
             udpClient = dgram.createSocket('udp4')
 
             udpClient.on('message', (msg: Buffer) => {
-                win?.webContents.send('network-data', {
+                broadcastToAll('network-data', {
                     hex: msg.toString('hex'),
                     data: msg.toString()
                 })
             })
 
             udpClient.on('error', (err: Error) => {
-                win?.webContents.send('network-data', { data: `[ERROR] ${err.message}`, hex: '' })
+                broadcastToAll('network-data', { data: `[ERROR] ${err.message}`, hex: '' })
             })
 
             // UDP 绑定随机端口
@@ -1409,6 +1429,30 @@ ipcMain.handle('network-tcp-send', async (_event, { data, hex }: { data: string;
 
 let serialPort: any = null
 let SerialPortModule: any = null
+let serialBuffer = Buffer.alloc(0)
+let serialFlushTimer: NodeJS.Timeout | null = null
+const SERIAL_FLUSH_INTERVAL = 30 // ms：30ms 内无新数据到达则合并发送
+
+/** 清空串口缓冲区并取消定时器 */
+function clearSerialBuffer() {
+    if (serialFlushTimer) {
+        clearTimeout(serialFlushTimer)
+        serialFlushTimer = null
+    }
+    serialBuffer = Buffer.alloc(0)
+}
+
+/** 刷新串口缓冲区：将累积数据作为一个完整消息发送 */
+function flushSerialBuffer() {
+    if (serialBuffer.length > 0) {
+        const merged = serialBuffer
+        serialBuffer = Buffer.alloc(0)
+        broadcastToAll('serial-data', {
+            data: merged.toString(),
+            hex: merged.toString('hex')
+        })
+    }
+}
 
 // 动态加载 serialport
 async function getSerialPortModule() {
@@ -1441,6 +1485,9 @@ ipcMain.handle('serial-open', async (_event, { path: portPath, baudRate: baud })
         const sp = await getSerialPortModule()
         if (!sp) return { success: false, error: 'serialport 模块未安装' }
 
+        // 清空旧缓冲区
+        clearSerialBuffer()
+
         if (serialPort && serialPort.isOpen) {
             serialPort.close()
             serialPort = null
@@ -1457,15 +1504,15 @@ ipcMain.handle('serial-open', async (_event, { path: portPath, baudRate: baud })
             })
 
             serialPort.on('data', (data: Buffer) => {
-                win?.webContents.send('serial-data', {
-                    data: data.toString(),
-                    hex: data.toString('hex')
-                })
+                // 累积到缓冲区，重置定时器
+                serialBuffer = Buffer.concat([serialBuffer, data])
+                if (serialFlushTimer) clearTimeout(serialFlushTimer)
+                serialFlushTimer = setTimeout(flushSerialBuffer, SERIAL_FLUSH_INTERVAL)
             })
 
             serialPort.on('error', (err: Error) => {
                 console.error('串口错误:', err.message)
-                win?.webContents.send('serial-data', { data: `[ERROR] ${err.message}`, hex: '' })
+                broadcastToAll('serial-data', { data: `[ERROR] ${err.message}`, hex: '' })
             })
 
             serialPort.on('close', () => {
@@ -1480,6 +1527,8 @@ ipcMain.handle('serial-open', async (_event, { path: portPath, baudRate: baud })
 // 关闭串口
 ipcMain.handle('serial-close', async () => {
     try {
+        // 先刷新缓冲区中的残留数据
+        flushSerialBuffer()
         if (serialPort && serialPort.isOpen) {
             serialPort.close()
             serialPort = null

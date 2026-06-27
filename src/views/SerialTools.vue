@@ -280,7 +280,7 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- 终端 -->
-        <div class="terminal" ref="terminalRef" @mousedown.prevent>
+        <div class="terminal" ref="terminalRef">
           <div v-if="logs.length === 0" class="empty-hint">串口数据将在此显示...</div>
           <div v-for="log in logs" :key="log.id" class="log-line" :class="'log-' + log.type">
             <span class="log-time">[{{ log.timestamp }}]</span>
@@ -405,6 +405,8 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: #d4d4d4;
   min-height: 200px;
+  user-select: text;
+  cursor: text;
 }
 
 .empty-hint { color: #666; text-align: center; padding: 50px 0; }

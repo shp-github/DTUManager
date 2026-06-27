@@ -23,44 +23,44 @@
           router
           @select="handleMenuSelect"
       >
-        <el-menu-item index="/devices">
+        <el-menu-item index="/devices" @contextmenu.prevent="(e) => openContextMenu(e, '/devices')">
           <el-icon><Cpu /></el-icon>
           <template #title>设备列表</template>
         </el-menu-item>
-        <el-menu-item index="/upgrade">
+        <el-menu-item index="/upgrade" @contextmenu.prevent="(e) => openContextMenu(e, '/upgrade')">
           <el-icon><Upload /></el-icon>
           <template #title>固件升级</template>
         </el-menu-item>
-        <el-menu-item index="/resource">
+        <el-menu-item index="/resource" @contextmenu.prevent="(e) => openContextMenu(e, '/resource')">
           <el-icon><TrendCharts /></el-icon>
           <template #title>设备统计</template>
         </el-menu-item>
-        <el-menu-item index="/device-resource">
+        <el-menu-item index="/device-resource" @contextmenu.prevent="(e) => openContextMenu(e, '/device-resource')">
           <el-icon><DataAnalysis /></el-icon>
           <template #title>设备资源</template>
         </el-menu-item>
-        <el-menu-item index="/monitoring">
+        <el-menu-item index="/monitoring" @contextmenu.prevent="(e) => openContextMenu(e, '/monitoring')">
           <el-icon><View /></el-icon>
           <template #title>数据监听</template>
         </el-menu-item>
 
-        <el-menu-item index="/dhcp">
+        <el-menu-item index="/dhcp" @contextmenu.prevent="(e) => openContextMenu(e, '/dhcp')">
           <el-icon><Link /></el-icon>
           <template #title>DHCP分配</template>
         </el-menu-item>
-        <el-menu-item index="/network-tools">
+        <el-menu-item index="/network-tools" @contextmenu.prevent="(e) => openContextMenu(e, '/network-tools')">
           <el-icon><Operation /></el-icon>
           <template #title>网络工具</template>
         </el-menu-item>
-        <el-menu-item index="/serial-tools">
+        <el-menu-item index="/serial-tools" @contextmenu.prevent="(e) => openContextMenu(e, '/serial-tools')">
           <el-icon><Connection /></el-icon>
           <template #title>串口工具</template>
         </el-menu-item>
-        <el-menu-item index="/log">
+        <el-menu-item index="/log" @contextmenu.prevent="(e) => openContextMenu(e, '/log')">
           <el-icon><Notebook /></el-icon>
           <template #title>日志管理</template>
         </el-menu-item>
-        <el-menu-item index="/local-info">
+        <el-menu-item index="/local-info" @contextmenu.prevent="(e) => openContextMenu(e, '/local-info')">
           <el-icon><InfoFilled /></el-icon>
           <template #title>本地信息</template>
         </el-menu-item>
@@ -92,13 +92,28 @@
     <el-main :style="mainStyle" style="padding: 20px; background-color: var(--main-bg); overflow: auto; transition: margin-left 0.3s;">
       <router-view />
     </el-main>
+
+    <!-- 右键菜单 -->
+    <teleport to="body">
+      <div
+        v-if="contextMenu.visible"
+        class="sidebar-context-menu"
+        :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+        @click.stop
+      >
+        <div class="context-menu-item" @click="openInNewWindow">
+          <el-icon><TopRight /></el-icon>
+          <span>打开新窗口</span>
+        </div>
+      </div>
+    </teleport>
   </el-container>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Expand, Fold, Cpu, TrendCharts, DataAnalysis, View, Link, Operation, Connection, Notebook, InfoFilled, Upload, Setting } from '@element-plus/icons-vue'
+import { Expand, Fold, Cpu, TrendCharts, DataAnalysis, View, Link, Operation, Connection, Notebook, InfoFilled, Upload, Setting, TopRight } from '@element-plus/icons-vue'
 import { useTheme } from '../composables/useTheme'
 import type { ThemeType } from '../composables/useTheme'
 
@@ -131,6 +146,49 @@ const mainStyle = computed(() => {
 const handleMenuSelect = (index: string) => {
   router.push(index)
 }
+
+// -------------------- 右键菜单 --------------------
+const contextMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  route: ''
+})
+
+const openContextMenu = (e: MouseEvent, route: string) => {
+  contextMenu.value = {
+    visible: true,
+    x: e.clientX,
+    y: e.clientY,
+    route
+  }
+}
+
+const closeContextMenu = () => {
+  contextMenu.value.visible = false
+}
+
+const openInNewWindow = () => {
+  if (contextMenu.value.route) {
+    window.electronAPI.openChildWindow(contextMenu.value.route)
+  }
+  closeContextMenu()
+}
+
+// 点击页面其他地方关闭右键菜单
+const handleClickOutside = () => {
+  if (contextMenu.value.visible) {
+    closeContextMenu()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 
 // 监听路由变化，保持菜单高亮
 watch(
@@ -325,5 +383,37 @@ watch(
 /* 折叠时hover去掉偏移 */
 .el-menu-vertical-demo.el-menu--collapse .el-menu-item:hover {
   transform: none !important;
+}
+
+/* -------------------- 右键菜单 -------------------- */
+.sidebar-context-menu {
+  position: fixed;
+  z-index: 10000;
+  background: var(--sidebar-bg);
+  border: 1px solid var(--sidebar-divider);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 160px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--sidebar-text);
+  font-size: 13px;
+  transition: background var(--duration-fast);
+}
+
+.context-menu-item:hover {
+  background: var(--sidebar-hover);
+}
+
+.context-menu-item .el-icon {
+  font-size: 15px;
 }
 </style>

@@ -417,12 +417,14 @@ export class UDPServer extends EventEmitter {
     }
 
     private notifyFrontend(): void {
-        if (this.win && !this.win.isDestroyed()) {
-            this.win.webContents.send(
-                'udp-device-discovered',
-                this.getDevices()
-            );
-        }
+        BrowserWindow.getAllWindows().forEach(w => {
+            if (!w.isDestroyed()) {
+                w.webContents.send(
+                    'udp-device-discovered',
+                    this.getDevices()
+                );
+            }
+        });
     }
 
     // 设置用户选择的本地IP
