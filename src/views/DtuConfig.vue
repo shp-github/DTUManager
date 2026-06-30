@@ -245,26 +245,55 @@ const connectMqtt = async () => {
 }
 
 // 读取设备配置（简洁版本）
+const EXPECTED_MODULES = ['basic', 'interface', 'network', 'channels', 'modbus']
+let receivedModules = new Set<string>()
+let checkTimer: ReturnType<typeof setTimeout> | null = null
+let loadingMsg: any = null
+let isReading = false
+let isSaveFlow = false
+let readingCompleted = false
+let readingId = 0
+
 const loadDeviceConfig = async () => {
   if (!device.value?.id) return
 
   try {
-    const topic = `/server/cmd/${device.value.id}`
-    const modules = ['basic', 'interface', 'network', 'channels', 'modbus']
-    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+    const thisReadingId = ++readingId
+    readingCompleted = false
+    isReading = true
+    receivedModules = new Set()
+    if (checkTimer) clearTimeout(checkTimer)
 
-    for (const [index, module] of modules.entries()) {
+    const topic = `/server/cmd/${device.value.id}`
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+    for (const [index, module] of EXPECTED_MODULES.entries()) {
       const message = JSON.stringify({type: 'get_config', flag: module})
-      const success = window.electronAPI.mqttPublish(topic,message, { qos: 1 })
-      console.log(success ? `✓ 发送${module}配置读取命令 (${index+1}/${modules.length})` : `✗ ${module}配置读取命令发送失败`)
-      // 延迟200ms（最后一个模块不需要延迟）
-      if (index < modules.length - 1) await delay(200)
+      const success = window.electronAPI.mqttPublish(topic, message, { qos: 1 })
+      console.log(success ? `✓ 发送${module}配置读取命令 (${index+1}/${EXPECTED_MODULES.length})` : `✗ ${module}配置读取命令发送失败`)
+      if (index < EXPECTED_MODULES.length - 1) await delay(200)
     }
 
     console.log('✅ 所有配置读取命令发送完成')
-    ElMessage.success('读取配置中')
+    loadingMsg = ElMessage.info(isSaveFlow ? '写入配置中...' : '读取配置中...')
 
-  } catch (err) {
+    // 4 秒后检查结果
+    checkTimer = setTimeout(() => {
+      if (!isReading || readingCompleted || readingId !== thisReadingId) return
+      readingCompleted = true
+      isReading = false
+      isSaveFlow = false
+      loadingMsg?.close()
+      const count = receivedModules.size
+      if (count === 0) {
+        ElMessage.warning('请稍后')
+      } else if (count < EXPECTED_MODULES.length) {
+        ElMessage.warning('请重试')
+      }
+    }, 4000)
+
+  } catch (err: any) {
+    isReading = false
     console.error('❌ 读取设备配置失败:', err)
     ElMessage.error('读取失败: ' + (err.message || err))
   }
@@ -302,37 +331,29 @@ const handleMqttMessage = (event: any, data: any) => {
     switch (flag) {
 
       case "basic":
-        // 接口配置（串口）
         allConfig.basic = msg
         console.log("更新 basic 配置成功:", allConfig.basic)
         break
 
       case "interface":
-        // 接口配置（串口）
         allConfig.interface = {
           uart1: msg.uart1 || {},
           uart2: msg.uart2 || {}
         }
-        //console.log("更新 interface 配置成功:", allConfig.interface)
         break
 
       case "network":
-        // 网络配置，例如 ip/subnet/gateway
         allConfig.network = {
           ...allConfig.network,
           ...msg
         }
-        //console.log("更新 network 配置成功:", allConfig.network)
         break
 
       case "channels":
-        // 网络通道列表
         allConfig.networkChannels = msg.channels || []
-        //console.log("更新 networkChannels 配置成功:", allConfig.networkChannels)
         break
 
       case "modbus": {
-        // modbus 采集表（兼容 msg.data 嵌套和扁平两种结构）
         const raw = msg.data || msg
         const { flag: _f, type: _t, ...modbusData } = raw
         allConfig.modbus = modbusData
@@ -350,7 +371,27 @@ const handleMqttMessage = (event: any, data: any) => {
 
       default:
         console.warn("未知 flag:", flag)
-        break
+        return
+    }
+
+    // 仅在读取周期内追踪模块（readingCompleted 保证只触发一次）
+    if (isReading && !readingCompleted) {
+      receivedModules.add(flag)
+      console.log(`已收到: ${receivedModules.size}/${EXPECTED_MODULES.length} 个模块`)
+
+      // 全部模块收到 → 关闭 loading 和定时器，提示成功
+      if (receivedModules.size >= EXPECTED_MODULES.length) {
+        readingCompleted = true
+        isReading = false
+        if (checkTimer) { clearTimeout(checkTimer); checkTimer = null }
+        loadingMsg?.close()
+        if (isSaveFlow) {
+          isSaveFlow = false
+          ElMessage.success('写入成功')
+        } else {
+          ElMessage.success('读取成功')
+        }
+      }
     }
 
 }
@@ -360,7 +401,8 @@ const handleMqttMessage = (event: any, data: any) => {
 let runtimeTimer: number
 onMounted(() => {
 
-  //监听设备消息
+  // 先清理旧的 MQTT 监听器（防止热重载累积），再注册新的
+  window.electronAPI.removeMqttListeners()
   window.electronAPI.deviceConfigMessage(handleMqttMessage)
 
   // 每秒更新运行时间
@@ -382,6 +424,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   clearInterval(runtimeTimer)
   window.electronAPI.off('menu-action', () => {})
+  window.electronAPI.removeMqttListeners()
   if (aceEditor) {
     aceEditor.destroy()
     aceEditor = null
@@ -429,7 +472,9 @@ const applyConfigEdit = () => {
 const exportConfig = async () => {
   try {
     const jsonStr = JSON.stringify(allConfig, null, 2)
-    const result = await window.electronAPI.exportConfigFile(jsonStr)
+    const deviceName = device.value?.name || ''
+    const deviceId = device.value?.id || ''
+    const result = await window.electronAPI.exportConfigFile(jsonStr, deviceName, deviceId)
     if (result.success) {
       ElMessage.success('配置已导出')
     }
@@ -461,7 +506,7 @@ const saveConfig = async () => {
   if (!device.value) return
   try {
     const topic = `/server/cmd/${device.value.id}`
-    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
     // 定义配置消息数组
     const configMessages = [
@@ -504,10 +549,12 @@ const saveConfig = async () => {
       },
     ]
 
-    // 依次发送每个配置
+    // 依次发送每个配置，跟踪成功数
+    let sendOk = 0
     for (let msg of configMessages) {
-      const success = window.electronAPI.mqttPublish(msg.topic,msg.message, { qos: 2 })
+      const success = window.electronAPI.mqttPublish(msg.topic, msg.message, { qos: 2 })
       if (success) {
+        sendOk++
         console.log(`发送配置: -> ${msg.topic} ${msg.message}`)
       } else {
         console.error(`发送配置失败: ${msg.topic}`)
@@ -515,7 +562,18 @@ const saveConfig = async () => {
       await sleep(200)
     }
 
-    // 读取配置
+    // 三态结果判断
+    if (sendOk === 0) {
+      ElMessage.warning('请稍后')
+      return
+    }
+    if (sendOk < configMessages.length) {
+      ElMessage.warning('请重试')
+      return
+    }
+
+    // 全部发送成功 → 标记为写入流程，回读验证
+    isSaveFlow = true
     loadDeviceConfig()
 
   } catch (err: any) {
@@ -703,4 +761,83 @@ html.dark .tabs-underline .el-tabs__item.is-active::after {
 }
 
 /* Ace Editor 暗夜主题已自带深色背景，无需额外适配 */
+
+/* ===== 配置查看弹窗 — 强制暗色终端风格（不受亮/暗模式影响） ===== */
+.dtu-config-container .el-dialog {
+  background: #161b22 !important;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.7) !important;
+}
+.dtu-config-container .el-dialog__header {
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding: 20px 24px 16px;
+  background: #161b22 !important;
+  margin-right: 0;
+}
+.dtu-config-container .el-dialog__title {
+  color: #e0e0e0 !important;
+  font-weight: 700;
+  font-size: 16px;
+}
+.dtu-config-container .el-dialog__headerbtn .el-dialog__close {
+  color: #94a3b8 !important;
+}
+.dtu-config-container .el-dialog__headerbtn:hover .el-dialog__close {
+  color: #e0e0e0 !important;
+}
+.dtu-config-container .el-dialog__body {
+  color: #cbd5e1;
+  padding: 20px 24px;
+  background: #161b22 !important;
+}
+.dtu-config-container .el-dialog__footer {
+  background: #161b22 !important;
+  padding: 16px 24px 20px;
+  overflow: visible;
+}
+
+/* 弹窗内按钮恢复原生 Lumina 发光样式（覆盖亮色模式的扁平化覆写） */
+.dtu-config-container .el-dialog .lumina-btn {
+  background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+  box-shadow: 0 2px 12px rgba(59,130,246,0.35), 0 0 30px rgba(59,130,246,0.1) !important;
+  color: #fff !important;
+}
+.dtu-config-container .el-dialog .lumina-btn:hover {
+  background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+  transform: translateY(-2px);
+  z-index: 10;
+  box-shadow: 0 6px 24px rgba(59,130,246,0.5), 0 0 50px rgba(59,130,246,0.2) !important;
+}
+.dtu-config-container .el-dialog .lumina-btn--success {
+  background: linear-gradient(135deg, #10b981, #059669) !important;
+  box-shadow: 0 2px 12px rgba(16,185,129,0.35), 0 0 30px rgba(16,185,129,0.1) !important;
+}
+.dtu-config-container .el-dialog .lumina-btn--success:hover {
+  box-shadow: 0 6px 24px rgba(16,185,129,0.5), 0 0 50px rgba(16,185,129,0.2) !important;
+}
+.dtu-config-container .el-dialog .lumina-btn--warning {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  box-shadow: 0 2px 12px rgba(245,158,11,0.35), 0 0 30px rgba(245,158,11,0.1) !important;
+}
+.dtu-config-container .el-dialog .lumina-btn--ghost {
+  background: transparent !important;
+  border: 1px solid rgba(255,255,255,0.15) !important;
+  color: #a0aec0 !important;
+  box-shadow: none !important;
+}
+.dtu-config-container .el-dialog .lumina-btn--ghost:hover {
+  background: rgba(255,255,255,0.06) !important;
+  border-color: rgba(255,255,255,0.25) !important;
+  color: #e0e0e0 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3) !important;
+}
+
+/* Ace Editor 容器边框与暗色协调 */
+.dtu-config-container .ace-editor-container {
+  border-color: rgba(255,255,255,0.1) !important;
+}
 </style>

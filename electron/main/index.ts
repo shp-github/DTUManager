@@ -830,11 +830,20 @@ ipcMain.handle('get-file-list', async () => {
 })
 
 // 导出/导入配置 JSON
-ipcMain.handle('export-config-file', async (_event, jsonStr: string) => {
+ipcMain.handle('export-config-file', async (_event, jsonStr: string, deviceName?: string, deviceId?: string) => {
     try {
+        // 构建默认文件名: {设备名}_{设备号}_config.json
+        let defaultFilename = 'dtu-config.json'
+        if (deviceName || deviceId) {
+            const parts: string[] = []
+            if (deviceName) parts.push(deviceName.replace(/[\\/:*?"<>|]/g, '_'))
+            if (deviceId) parts.push(deviceId.replace(/[\\/:*?"<>|]/g, '_'))
+            parts.push('config.json')
+            defaultFilename = parts.join('_')
+        }
         const { canceled, filePath } = await dialog.showSaveDialog({
             title: '导出设备配置',
-            defaultPath: 'dtu-config.json',
+            defaultPath: defaultFilename,
             filters: [{ name: 'JSON 文件', extensions: ['json'] }]
         })
         if (canceled || !filePath) return { success: false }

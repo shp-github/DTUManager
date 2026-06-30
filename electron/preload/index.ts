@@ -34,7 +34,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getFileList: () => ipcRenderer.invoke('get-file-list'),
 
     // 配置导出/导入
-    exportConfigFile: (jsonStr: string) => ipcRenderer.invoke('export-config-file', jsonStr),
+    exportConfigFile: (jsonStr: string, deviceName?: string, deviceId?: string) => ipcRenderer.invoke('export-config-file', jsonStr, deviceName, deviceId),
     importConfigFile: () => ipcRenderer.invoke('import-config-file'),
 
     sendUpgradeCommand: (deviceIp, fileName, serverInfo) => ipcRenderer.invoke('send-upgrade-command', { deviceIp, fileName, serverInfo }),

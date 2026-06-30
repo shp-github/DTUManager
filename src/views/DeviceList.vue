@@ -34,15 +34,16 @@
         border
         :row-style="{ height: '56px' }"
         @selection-change="handleSelectionChange"
+        @sort-change="handleSortChange"
         :fit="true"
         :show-header="true"
     >
     <el-table-column type="selection" width="55" />
-    <el-table-column prop="name" label="设备名称" width="200" resizable />
-    <el-table-column prop="id" label="设备号" width="140" resizable />
-    <el-table-column prop="ip" label="IP 地址" width="140" resizable />
-    <el-table-column prop="firmware" label="固件版本" width="100" resizable />
-    <el-table-column label="网络类型" width="100" align="center">
+    <el-table-column prop="name" label="设备名称" width="200" resizable sortable />
+    <el-table-column prop="id" label="设备号" width="140" resizable sortable />
+    <el-table-column prop="ip" label="IP 地址" width="140" resizable sortable />
+    <el-table-column prop="firmware" label="固件版本" width="120" resizable sortable="custom" />
+    <el-table-column label="网络类型" width="120" align="center">
       <template #default="{ row }">
         <el-tooltip :content="row.networkType || '未知'" placement="top" effect="dark">
           <img
@@ -55,7 +56,7 @@
         </el-tooltip>
       </template>
     </el-table-column>
-    <el-table-column label="信号" width="140" resizable>
+    <el-table-column label="信号" prop="RSSI" width="140" resizable sortable="custom">
       <template #default="{ row }">
         <template v-if="row.RSSI !== null && row.RSSI !== undefined">
           <el-tooltip :content="getSignalTooltip(row.RSSI)" placement="top" effect="dark" raw-content>
@@ -74,12 +75,12 @@
       </template>
     </el-table-column>
     <el-table-column prop="mac" label="MAC地址" width="180" resizable />
-    <el-table-column label="运行时间" width="200" resizable>
+    <el-table-column label="运行时间" prop="runtime" width="200" resizable sortable="custom">
       <template #default="{ row }">
         {{ formatRuntime(row.runtime) }}
       </template>
     </el-table-column>
-    <el-table-column prop="heart_interval" label="心跳(s)" width="80" resizable />
+    <el-table-column prop="heart_interval" label="心跳(s)" width="100" resizable sortable />
     <el-table-column label="操作" width="220" align="center">
       <template #default="{ row }">
         <div class="action-buttons">
@@ -134,42 +135,89 @@ const router = useRouter()
 // ========== 设备列表 ==========
 const searchText = ref('')
 const networkTypeFilter = ref('')
+const rawDeviceList = ref<any[]>([])
 const filteredDevices = ref<any[]>([])
 const multipleSelection = ref<any[]>([])
+const sortState = ref<{ prop: string; order: 'ascending' | 'descending' | null }>({ prop: '', order: null })
 
 function handleSelectionChange(val: any[]) {
   multipleSelection.value = val
 }
 
-const setList = (list: any[]) => {
-  let newList: any[] = []
-  for (let i = 0; i < list.length; i++) {
-    let obj = list[i]
-    let pd = true
+/** 语义版本号解析：v1.0.11 → [1, 0, 11] */
+function parseFirmware(v: string | undefined): number[] {
+  if (!v) return []
+  return v.replace(/^v/i, '').split('.').map(Number)
+}
 
-    // 过滤关键字
-    if (searchText.value && searchText.value !== '') {
-      if (obj.name.indexOf(searchText.value) === -1
-          && obj.id.indexOf(searchText.value) === -1
-          && obj.ip.indexOf(searchText.value) === -1) {
-        pd = false
-      }
-    }
-
-    // 过滤网络类型
-    if (networkTypeFilter.value && networkTypeFilter.value !== '') {
-      if (obj.networkType.indexOf(networkTypeFilter.value) === -1) {
-        pd = false
-      }
-    }
-
-    if (pd) newList.push(obj)
+/** 比较两个固件版本号 */
+function compareFirmware(va: any, vb: any): number {
+  const pa = parseFirmware(va)
+  const pb = parseFirmware(vb)
+  const len = Math.max(pa.length, pb.length)
+  for (let i = 0; i < len; i++) {
+    const na = pa[i] ?? 0
+    const nb = pb[i] ?? 0
+    if (na !== nb) return na - nb
   }
-  filteredDevices.value = newList
+  return 0
+}
+
+/** 过滤 + 排序 */
+function applyFiltersAndSort() {
+  let list = [...rawDeviceList.value]
+
+  // 过滤关键字
+  if (searchText.value && searchText.value !== '') {
+    const kw = searchText.value
+    list = list.filter(obj =>
+      obj.name.indexOf(kw) !== -1 ||
+      obj.id.indexOf(kw) !== -1 ||
+      obj.ip.indexOf(kw) !== -1
+    )
+  }
+
+  // 过滤网络类型
+  if (networkTypeFilter.value && networkTypeFilter.value !== '') {
+    const nf = networkTypeFilter.value
+    list = list.filter(obj => obj.networkType.indexOf(nf) !== -1)
+  }
+
+  // 排序
+  const { prop, order } = sortState.value
+  if (order) {
+    if (prop === 'firmware') {
+      list.sort((a, b) => {
+        const cmp = compareFirmware(a.firmware, b.firmware)
+        return order === 'descending' ? -cmp : cmp
+      })
+    } else if (prop === 'RSSI') {
+      list.sort((a, b) => {
+        const va = a.RSSI ?? -999
+        const vb = b.RSSI ?? -999
+        const cmp = va - vb
+        return order === 'descending' ? -cmp : cmp
+      })
+    } else if (prop === 'runtime') {
+      list.sort((a, b) => {
+        const va = a.runtime || 0
+        const vb = b.runtime || 0
+        const cmp = va - vb
+        return order === 'descending' ? -cmp : cmp
+      })
+    }
+  }
+
+  filteredDevices.value = list
+}
+
+function handleSortChange({ prop, order }: { prop: string; order: 'ascending' | 'descending' | null }) {
+  sortState.value = { prop, order }
+  applyFiltersAndSort()
 }
 
 function searchDevices() {
-  setList(filteredDevices.value)
+  applyFiltersAndSort()
 }
 
 function goToConfig(device: any) {
@@ -214,7 +262,8 @@ watch(upgradeDialogVisible, (newVal, oldVal) => {
 onMounted(() => {
   window.electronAPI.onDeviceDiscovered((list: any[]) => {
     if (!multipleSelection.value || !multipleSelection.value.length || multipleSelection.value.length === 0) {
-      setList([...list])
+      rawDeviceList.value = [...list]
+      applyFiltersAndSort()
     }
   })
 })

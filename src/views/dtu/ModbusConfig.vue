@@ -86,7 +86,7 @@
 
         <el-table
           :data="tmpl.commands"
-          :row-key="(row: any) => row[4]"
+          :row-key="(row: any) => row[5]"
           :expand-row-keys="expandedRowKeys"
           @expand-change="onExpandChange"
           style="width:100%;"
@@ -99,7 +99,7 @@
                   <el-button size="small" type="primary" @click="addMapping(row)">添加映射</el-button>
                 </div>
 
-                <el-table :data="row[3]" style="width:100%; margin-top:10px;">
+                <el-table :data="row[4]" style="width:100%; margin-top:10px;">
                   <el-table-column label="寄存器偏移" min-width="100">
                     <template #default="{ row: m }">
                       <el-input-number v-model="m[1]" :min="0" @click.stop />
@@ -166,6 +166,17 @@
             </template>
           </el-table-column>
 
+          <el-table-column label="写功能码" min-width="100">
+            <template #default="{ row }">
+              <el-select v-model="row[3]" @click.stop>
+                <el-option label="只读" value=""/>
+                <el-option label="05H" value="05"/>
+                <el-option label="06H" value="06"/>
+                <el-option label="10H" value="10"/>
+              </el-select>
+            </template>
+          </el-table-column>
+
           <el-table-column label="操作" min-width="170">
             <template #default="{ $index }">
               <el-button size="small" type="warning" @click="copyTemplateCommand(tmpl, $index)">复制</el-button>
@@ -186,7 +197,7 @@ import { ElMessage } from 'element-plus'
 // ---------- 类型定义 ----------
 interface Template {
   addrs: number[]
-  commands: any[][]  // [funcCode: string, startReg: number, regCount: number, mappings: any[][], uid: number]
+  commands: any[][]  // [funcCode, startReg, regCount, writeFuncCode, mappings, uid]
 }
 
 // ---------- 全局计数器 & 防抖 & 展开状态 ----------
@@ -197,7 +208,7 @@ const expandedRowKeys = ref<number[]>([])
 function onExpandChange(_row: any, expandedRows: any[]) {
   // 同步期间忽略表格重渲染触发的 expand-change，防止 row-key 变化导致意外收缩
   if (syncing) return
-  expandedRowKeys.value = expandedRows.map((r: any) => r[4])
+  expandedRowKeys.value = expandedRows.map((r: any) => r[5])
 }
 
 const setModbusConfig = () => {
@@ -242,8 +253,8 @@ watch(() => props.modelValue, (val) => {
     for (const [ti, tmpl] of internalConfig.templates.entries()) {
       if (tmpl.commands) {
         for (const [ci, cmd] of tmpl.commands.entries()) {
-          if (cmd[4] !== undefined) {
-            uidBackup.set(`${ti}-${ci}`, cmd[4])
+          if (cmd[5] !== undefined) {
+            uidBackup.set(`${ti}-${ci}`, cmd[5])
           }
         }
       }
@@ -264,7 +275,7 @@ watch(() => props.modelValue, (val) => {
         for (const [ci, cmd] of tmpl.commands.entries()) {
           const key = `${ti}-${ci}`
           if (uidBackup.has(key)) {
-            cmd[4] = uidBackup.get(key)!
+            cmd[5] = uidBackup.get(key)!
           }
         }
       }
@@ -282,12 +293,12 @@ watch(internalConfig, () => {
   if (emitTimer) clearTimeout(emitTimer)
   emitTimer = setTimeout(() => {
     const out = JSON.parse(JSON.stringify(internalConfig))
-    // 剥离所有 command 的 UID（第5个元素），输出符合文档的格式
+    // 剥离所有 command 的 UID（第6个元素），输出符合文档的 5 元组格式
     if (out.templates) {
       for (const tmpl of out.templates) {
         if (tmpl.commands) {
           for (const cmd of tmpl.commands) {
-            cmd.length = 4  // 保留 [funcCode, startReg, regCount, mappings]
+            cmd.length = 5  // 保留 [funcCode, startReg, regCount, writeFuncCode, mappings]
           }
         }
       }
@@ -306,8 +317,8 @@ function ensureCommandUIDs() {
   for (const tmpl of internalConfig.templates) {
     if (!tmpl.commands) tmpl.commands = []
     for (const cmd of tmpl.commands) {
-      if (cmd.length < 5 || cmd[4] === undefined) {
-        cmd[4] = ++uidCounter
+      if (cmd.length < 6 || cmd[5] === undefined) {
+        cmd[5] = ++uidCounter
       }
     }
     if (!tmpl.addrs) tmpl.addrs = []
@@ -348,9 +359,10 @@ function removeAddr(tmpl: Template, aIdx: number) {
 function addTemplateCommand(tmpl: Template) {
   if (!tmpl.commands) tmpl.commands = []
   tmpl.commands.push([
-    '03',   // 默认功能码
+    '03',   // 功能码
     0,      // 起始寄存器
     1,      // 寄存器数量
+    '',     // 写功能码（空=无）
     [],     // 映射列表
     ++uidCounter
   ])
@@ -362,25 +374,25 @@ function removeTemplateCommand(tmpl: Template, cmdIndex: number) {
 
 function copyTemplateCommand(tmpl: Template, cmdIndex: number) {
   const src = tmpl.commands[cmdIndex]
-  const copy = [src[0], src[1], src[2], JSON.parse(JSON.stringify(src[3])), ++uidCounter]
+  const copy = [src[0], src[1], src[2], src[3], JSON.parse(JSON.stringify(src[4])), ++uidCounter]
   tmpl.commands.splice(cmdIndex + 1, 0, copy)
 }
 
 // ---------- 映射操作 ----------
 function addMapping(cmd: any) {
-  if (!cmd[3]) cmd[3] = []
+  if (!cmd[4]) cmd[4] = []
   if (!checkMappingCapacity(cmd, 2)) return
-  cmd[3].push(['', 0, 2, 0])
+  cmd[4].push(['', 0, 2, 0])
 }
 
 function removeMapping(cmd: any, index: number) {
-  cmd[3].splice(index, 1)
+  cmd[4].splice(index, 1)
 }
 
 function copyMapping(cmd: any, index: number) {
-  const m = cmd[3][index]
+  const m = cmd[4][index]
   if (!checkMappingCapacity(cmd, m[2] || 0)) return
-  cmd[3].splice(index + 1, 0, [m[0], m[1], m[2], m[3]])
+  cmd[4].splice(index + 1, 0, [m[0], m[1], m[2], m[3]])
 }
 
 // ---------- 校验 ----------
@@ -388,7 +400,7 @@ function copyMapping(cmd: any, index: number) {
 function checkMappingCapacity(cmd: any, newBytes: number): boolean {
   const regCount = cmd[2] || 0
   const totalBytes = regCount * 2
-  const mappings: any[] = cmd[3] || []
+  const mappings: any[] = cmd[4] || []
   const currentBytes = mappings.reduce((sum: number, m: any) => sum + (m[2] || 0), 0)
   if (currentBytes + newBytes > totalBytes) {
     ElMessage.warning(`映射总字节数(${currentBytes + newBytes})超过寄存器容量(${totalBytes}字节，${regCount}个寄存器)`)

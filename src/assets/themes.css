@@ -109,52 +109,10 @@ html:not(.dark) .dtu-list-container .el-checkbox__input.is-checked .el-checkbox_
   border-color: var(--el-color-primary) !important;
   box-shadow: none !important;
 }
-/* 亮色对话框 */
-html:not(.dark) .el-dialog {
-  background: #fff !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  border-color: #ebeef5 !important;
-  box-shadow: 0 12px 48px rgba(0,0,0,0.15) !important;
-}
-html:not(.dark) .el-dialog__header {
-  border-bottom-color: #ebeef5 !important;
-}
-html:not(.dark) .el-dialog__title {
-  color: #303133 !important;
-}
-html:not(.dark) .el-dialog__body {
-  color: #606266 !important;
-}
-html:not(.dark) .upgrade-device-info {
-  background: var(--el-color-primary-light-9) !important;
-  border-color: var(--el-color-primary-light-7) !important;
-}
-html:not(.dark) .upgrade-device-info p {
-  color: #303133 !important;
-}
-html:not(.dark) .file-info {
-  background: #f0f9eb !important;
-  border-color: #e1f3d8 !important;
-}
-html:not(.dark) .file-info p {
-  color: #303133 !important;
-}
-html:not(.dark) .terminal-controls {
-  border-bottom-color: #ebeef5 !important;
-}
-html:not(.dark) .terminal-controls .device-info {
-  color: #303133 !important;
-}
-html:not(.dark) .terminal-output {
-  background: #f8f9fa !important;
-  border-color: #e9ecef !important;
-  box-shadow: inset 0 2px 8px rgba(0,0,0,0.04) !important;
-}
 html:not(.dark) .signal-na {
   color: #c0c4cc !important;
 }
-/* 亮色对话框按钮 */
+/* 亮色对话框按钮（仅限非终端风格弹窗） */
 html:not(.dark) .el-dialog .lumina-btn {
   background: var(--el-color-primary) !important;
   box-shadow: none !important;

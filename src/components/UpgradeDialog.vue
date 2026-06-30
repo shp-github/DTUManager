@@ -3,7 +3,9 @@
       v-model="visible"
       :title="isBatch ? '批量升级' : '设备升级'"
       width="500px"
+      :teleported="false"
       :before-close="handleDialogClose"
+      class="upgrade-dialog"
   >
     <div class="upgrade-content">
       <div v-if="currentDevice && !isBatch" class="upgrade-device-info">
@@ -257,47 +259,193 @@ const submitUpgrade = async () => {
 .upgrade-content { padding: 10px 0; }
 
 .upgrade-device-info {
-  background: rgba(59,130,246,0.08);
-  border: 1px solid rgba(59,130,246,0.15);
+  background: rgba(59,130,246,0.1);
+  border: 1px solid rgba(59,130,246,0.2);
   padding: 16px;
   border-radius: 12px;
   margin-bottom: 20px;
   border-left: 4px solid #3b82f6;
 }
-.upgrade-device-info p { margin: 6px 0; color: #cbd5e1; }
 
 .file-info {
   margin-top: 15px;
   padding: 12px 16px;
-  background: rgba(16,185,129,0.08);
-  border: 1px solid rgba(16,185,129,0.15);
+  background: rgba(16,185,129,0.1);
+  border: 1px solid rgba(16,185,129,0.2);
   border-radius: 12px;
 }
-.file-info p { margin: 5px 0; color: #cbd5e1; }
 
-/* 对话框样式 */
+/* 对话框 — 暗色终端风格（:teleported="false"，scoped :deep() 可穿透） */
 :deep(.el-dialog) {
-  background: rgba(17,24,39,0.95) !important;
+  background: #161b22 !important;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255,255,255,0.08) !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
   border-radius: 20px !important;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.6) !important;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.7) !important;
 }
 :deep(.el-dialog__header) {
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
   padding: 20px 24px 16px;
+  background: #161b22 !important;
+  margin-right: 0;
 }
 :deep(.el-dialog__title) {
   color: #e0e0e0 !important;
   font-weight: 700;
+  font-size: 16px;
+}
+:deep(.el-dialog__headerbtn .el-dialog__close) {
+  color: #94a3b8 !important;
+}
+:deep(.el-dialog__headerbtn:hover .el-dialog__close) {
+  color: #e0e0e0 !important;
 }
 :deep(.el-dialog__body) {
   color: #cbd5e1;
   padding: 20px 24px;
+  background: #161b22 !important;
 }
 :deep(.el-dialog__footer) {
+  background: #161b22 !important;
   padding: 16px 24px 20px;
   overflow: visible;
+}
+
+/* el-alert 暗色适配 */
+:deep(.el-alert--info) {
+  background: rgba(96,165,250,0.1) !important;
+  border: 1px solid rgba(96,165,250,0.2) !important;
+}
+:deep(.el-alert__title) {
+  color: #93c5fd !important;
+}
+
+/* el-upload 暗色适配 */
+:deep(.el-upload-dragger) {
+  background: rgba(255,255,255,0.03) !important;
+  border: 1px dashed rgba(255,255,255,0.15) !important;
+}
+:deep(.el-upload-dragger:hover) {
+  border-color: rgba(96,165,250,0.5) !important;
+}
+:deep(.el-upload__text) {
+  color: #94a3b8 !important;
+}
+:deep(.el-upload__text em) {
+  color: #60a5fa !important;
+}
+:deep(.el-upload__tip) {
+  color: #64748b !important;
+}
+
+/* 弹窗内按钮 Lumina 发光样式 */
+:deep(.el-dialog__footer .lumina-btn) {
+  background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+  box-shadow: 0 2px 12px rgba(59,130,246,0.35), 0 0 30px rgba(59,130,246,0.1) !important;
+  color: #fff !important;
+}
+:deep(.el-dialog__footer .lumina-btn:hover) {
+  background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+  transform: translateY(-2px);
+  z-index: 10;
+  box-shadow: 0 6px 24px rgba(59,130,246,0.5), 0 0 50px rgba(59,130,246,0.2) !important;
+}
+:deep(.el-dialog__footer .lumina-btn--ghost) {
+  background: transparent !important;
+  border: 1px solid rgba(255,255,255,0.15) !important;
+  color: #a0aec0 !important;
+  box-shadow: none !important;
+}
+:deep(.el-dialog__footer .lumina-btn--ghost:hover) {
+  background: rgba(255,255,255,0.06) !important;
+  border-color: rgba(255,255,255,0.25) !important;
+  color: #e0e0e0 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3) !important;
+}
+</style>
+
+<!-- 升级弹窗主题适配（全局样式，不受Teleport/scope影响） -->
+<style>
+/* ===== 暗夜模式：白色文字 + 深色对话框 ===== */
+html.dark .upgrade-device-info p,
+html.dark .upgrade-device-info strong,
+html.dark .file-info p,
+html.dark .file-info strong {
+  color: #ffffff !important;
+}
+html.dark .upgrade-content .el-alert__title {
+  color: #e0e0e0 !important;
+}
+html.dark .upgrade-content .el-upload__text {
+  color: #cbd5e1 !important;
+}
+html.dark .upgrade-content .el-upload__text em {
+  color: #60a5fa !important;
+}
+html.dark .upgrade-content .el-upload__tip {
+  color: #94a3b8 !important;
+}
+
+/* ===== 蓝绿模式：黑色文字 + 亮色对话框 ===== */
+html:not(.dark) .upgrade-dialog .el-dialog {
+  background: #ffffff !important;
+}
+html:not(.dark) .upgrade-dialog .el-dialog__header {
+  background: #ffffff !important;
+  border-bottom: 1px solid #ebeef5 !important;
+}
+html:not(.dark) .upgrade-dialog .el-dialog__title {
+  color: #303133 !important;
+}
+html:not(.dark) .upgrade-dialog .el-dialog__headerbtn .el-dialog__close {
+  color: #909399 !important;
+}
+html:not(.dark) .upgrade-dialog .el-dialog__headerbtn:hover .el-dialog__close {
+  color: #303133 !important;
+}
+html:not(.dark) .upgrade-dialog .el-dialog__body {
+  background: #ffffff !important;
+  color: #606266 !important;
+}
+html:not(.dark) .upgrade-dialog .el-dialog__footer {
+  background: #ffffff !important;
+}
+
+html:not(.dark) .upgrade-device-info p,
+html:not(.dark) .upgrade-device-info strong {
+  color: #1f2937 !important;
+}
+html:not(.dark) .file-info p,
+html:not(.dark) .file-info strong {
+  color: #1f2937 !important;
+}
+html:not(.dark) .upgrade-content .el-alert__title {
+  color: #303133 !important;
+}
+html:not(.dark) .upgrade-content .el-upload__text {
+  color: #606266 !important;
+}
+html:not(.dark) .upgrade-content .el-upload__text em {
+  color: var(--el-color-primary) !important;
+}
+html:not(.dark) .upgrade-content .el-upload__tip {
+  color: #909399 !important;
+}
+
+/* 蓝绿模式：el-alert 信息框 */
+html:not(.dark) .upgrade-content .el-alert--info {
+  background: var(--el-color-primary-light-9) !important;
+  border: 1px solid var(--el-color-primary-light-5) !important;
+}
+
+/* 蓝绿模式：el-upload 拖拽区 */
+html:not(.dark) .upgrade-content .el-upload-dragger {
+  background: #fafafa !important;
+  border: 1px dashed #dcdfe6 !important;
+}
+html:not(.dark) .upgrade-content .el-upload-dragger:hover {
+  border-color: var(--el-color-primary) !important;
 }
 </style>

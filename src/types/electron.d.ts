@@ -59,7 +59,7 @@ declare global {
             getFileList: () => Promise<FileListResult>
 
             // 配置导出/导入
-            exportConfigFile: (jsonStr: string) => Promise<{ success: boolean; path?: string; error?: string }>
+            exportConfigFile: (jsonStr: string, deviceName?: string, deviceId?: string) => Promise<{ success: boolean; path?: string; error?: string }>
             importConfigFile: () => Promise<{ success: boolean; data?: string; error?: string }>
 
 

@@ -3,6 +3,7 @@
       v-model="visible"
       title="设备终端"
       width="800px"
+      :teleported="false"
       :fullscreen="isTerminalFullscreen"
       :before-close="handleTerminalDialogClose"
       @open="onDialogOpen"
@@ -17,21 +18,21 @@
         </div>
         <div class="control-buttons">
           <button
-              class="lumina-btn lumina-btn--sm"
+              class="lumina-btn"
               @click="toggleTerminalConnection"
               :disabled="terminalConnecting"
           >
             <span v-if="terminalConnecting" class="lumina-spinner"></span>
             {{ isTerminalConnected ? '断开连接' : '连接终端' }}
           </button>
-          <button class="lumina-btn lumina-btn--ghost lumina-btn--sm" @click="clearTerminal">清空终端</button>
+          <button class="lumina-btn lumina-btn--ghost" @click="clearTerminal">清空终端</button>
           <button
-              class="lumina-btn lumina-btn--ghost lumina-btn--sm"
+              class="lumina-btn lumina-btn--ghost"
               @click="toggleTerminalFullscreen"
           >
             {{ isTerminalFullscreen ? '退出全屏' : '全屏' }}
           </button>
-          <el-tag :type="isTerminalConnected ? 'success' : 'info'">
+          <el-tag :type="isTerminalConnected ? 'success' : 'info'" size="large">
             {{ isTerminalConnected ? '已连接' : '未连接' }}
           </el-tag>
         </div>
@@ -60,7 +61,7 @@
         >
           <template #append>
             <button
-                class="lumina-btn lumina-btn--sm lumina-btn--append"
+                class="lumina-btn lumina-btn--append"
                 :disabled="!isTerminalConnected || !terminalInput"
                 @click="sendTerminalMessage"
             >
@@ -71,7 +72,7 @@
 
         <div class="quick-commands">
           <button
-              class="lumina-btn lumina-btn--ghost lumina-btn--xs"
+              class="lumina-btn lumina-btn--ghost lumina-btn--sm"
               v-for="cmd in quickCommands"
               :key="cmd.name"
               @click="executeQuickCommand(cmd)"
@@ -279,15 +280,25 @@ const handleMqttMessage = (_event: any, data: any) => {
 
 onMounted(() => {
   window.electronAPI.onMqttMessagePublished(handleMqttMessage)
+
+  // 兜底自动连接：v-if 重建组件时，@open 事件可能尚未触发，
+  // 在 nextTick 后确保连接终端逻辑一定执行
+  if (props.currentDevice) {
+    nextTick(() => {
+      if (!isTerminalConnected.value && !terminalConnecting.value) {
+        onDialogOpen()
+      }
+    })
+  }
 })
 
 onUnmounted(() => {
-  // cleanup if needed
+  window.electronAPI.removeMqttListeners()
 })
 </script>
 
 <style scoped>
-/* ===== 终端对话框 ===== */
+/* ===== 终端对话框 — 始终暗色终端风格 ===== */
 .terminal-dialog-content { display: flex; flex-direction: column; height: 60vh; }
 
 .terminal-controls {
@@ -295,31 +306,37 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
-  padding: 8px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  flex-wrap: wrap;
+  gap: 10px;
 }
 .terminal-controls .device-info {
-  display: flex; gap: 16px; font-size: 14px; color: #cbd5e1;
+  display: flex; gap: 16px; font-size: 14px; color: #ffffff; font-weight: 500;
 }
-.control-buttons { display: flex; gap: 8px; align-items: center; }
+.terminal-controls .device-info strong {
+  color: #8899aa;
+  margin-right: 4px;
+}
+.control-buttons { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
 .terminal-output {
   flex: 1;
   background: #0a0e14;
-  border: 1px solid rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: 12px;
-  padding: 14px;
+  padding: 16px;
   font-family: 'Consolas', 'Courier New', monospace;
   font-size: 13px;
   color: #d4d4d4;
   overflow-y: auto;
   margin-bottom: 16px;
   min-height: 300px;
-  box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);
+  box-shadow: inset 0 2px 12px rgba(0,0,0,0.5);
 }
 
-.log-entry { margin-bottom: 3px; line-height: 1.5; word-break: break-all; }
-.log-entry .timestamp { color: #6a9955; margin-right: 8px; }
+.log-entry { margin-bottom: 4px; line-height: 1.6; word-break: break-all; }
+.log-entry .timestamp { color: #6a9955; margin-right: 8px; font-weight: 500; }
 .log-entry .topic { color: #569cd6; margin-right: 8px; font-weight: bold; }
 .log-entry.info .message { color: #9cdcfe; }
 .log-entry.success .message { color: #4ec9b0; }
@@ -327,30 +344,80 @@ onUnmounted(() => {
 .log-entry.send .message { color: #ce9178; }
 .log-entry.receive .message { color: #d7ba7d; }
 
-.terminal-input { display: flex; flex-direction: column; gap: 12px; }
+.terminal-input { display: flex; flex-direction: column; gap: 14px; }
 .quick-commands { display: flex; gap: 8px; flex-wrap: wrap; }
 
-/* 对话框样式 */
+/* 对话框 — 暗色终端风格（:teleported="false"，scoped :deep() 可穿透） */
 :deep(.el-dialog) {
-  background: rgba(17,24,39,0.95) !important;
+  background: #161b22 !important;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255,255,255,0.08) !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
   border-radius: 20px !important;
-  box-shadow: 0 24px 64px rgba(0,0,0,0.6) !important;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.7) !important;
 }
 :deep(.el-dialog__header) {
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
   padding: 20px 24px 16px;
+  background: #161b22 !important;
+  margin-right: 0;
 }
 :deep(.el-dialog__title) {
   color: #e0e0e0 !important;
   font-weight: 700;
+  font-size: 16px;
+}
+:deep(.el-dialog__headerbtn .el-dialog__close) {
+  color: #94a3b8 !important;
+}
+:deep(.el-dialog__headerbtn:hover .el-dialog__close) {
+  color: #e0e0e0 !important;
 }
 :deep(.el-dialog__body) {
   color: #cbd5e1;
   padding: 20px 24px;
+  background: #161b22 !important;
 }
+
+/* 全屏适配 */
 :deep(.el-dialog--fullscreen .terminal-dialog-content) { height: calc(100vh - 100px); }
 :deep(.el-dialog--fullscreen .terminal-output) { min-height: 60vh; }
+
+/* ===== 输入框 — 暗色终端风格 ===== */
+:deep(.el-input__wrapper) {
+  background: #0d1117 !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+:deep(.el-input__wrapper:hover) {
+  border-color: rgba(96,165,250,0.4) !important;
+}
+:deep(.el-input__wrapper.is-focus) {
+  border-color: rgba(96,165,250,0.6) !important;
+  box-shadow: 0 0 0 1px rgba(96,165,250,0.2) !important;
+}
+:deep(.el-input__inner) {
+  color: #e0e0e0 !important;
+}
+:deep(.el-input__inner::placeholder) {
+  color: rgba(255,255,255,0.3) !important;
+}
+:deep(.el-input-group__append) {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+:deep(.el-input-group__append .lumina-btn--append) {
+  padding: 0 20px !important;
+  font-size: 14px;
+  height: 100%;
+}
+
+/* ===== el-tag 暗色适配 ===== */
+:deep(.el-tag--large) {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
 </style>

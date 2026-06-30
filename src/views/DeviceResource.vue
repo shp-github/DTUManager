@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { formatRuntime } from '../composables/useSignal'
 
 interface DeviceStatus {
   deviceId: string
   clientId: string
+  name: string
   uptime: number
+  runtime: number
   heap_free: number
   heap_total: number
   flash_free: number
@@ -18,11 +21,33 @@ interface DeviceStatus {
   lastUpdate: number
 }
 
+interface DeviceListInfo {
+  name: string
+  runtime: number
+  ip: string
+}
+
 const deviceMap = ref<Map<string, DeviceStatus>>(new Map())
+
+// 来自设备列表的名称 & 运行时间映射（key: 设备号）
+const deviceInfoMap = ref<Map<string, DeviceListInfo>>(new Map())
 
 // 搜索 & 筛选
 const searchText = ref('')
 const networkTypeFilter = ref('')
+
+// 排序：''=默认, 'heap_free_asc'/'heap_free_desc', 'flash_free_asc'/'flash_free_desc', 'flash_used_asc'/'flash_used_desc'
+const sortType = ref('')
+
+const sortOptions = [
+  { label: '默认排序', value: '' },
+  { label: '堆内存空闲  ↑（少→多）', value: 'heap_free_asc' },
+  { label: '堆内存空闲  ↓（多→少）', value: 'heap_free_desc' },
+  { label: 'Flash 空闲  ↑（少→多）', value: 'flash_free_asc' },
+  { label: 'Flash 空闲  ↓（多→少）', value: 'flash_free_desc' },
+  { label: 'Flash 已用  ↑（少→多）', value: 'flash_used_asc' },
+  { label: 'Flash 已用  ↓（多→少）', value: 'flash_used_desc' },
+]
 
 const devices = computed(() => Array.from(deviceMap.value.values()))
 
@@ -32,6 +57,7 @@ const filteredDevices = computed(() => {
     const kw = searchText.value.toLowerCase()
     list = list.filter(d =>
         (d.deviceId && d.deviceId.toLowerCase().includes(kw)) ||
+        (d.name && d.name.toLowerCase().includes(kw)) ||
         (d.clientId && d.clientId.toLowerCase().includes(kw)) ||
         (d.ip && d.ip.toLowerCase().includes(kw))
     )
@@ -39,19 +65,35 @@ const filteredDevices = computed(() => {
   if (networkTypeFilter.value) {
     list = list.filter(d => d.network === networkTypeFilter.value)
   }
+
+  // 排序
+  if (sortType.value) {
+    const arr = [...list]
+    switch (sortType.value) {
+      case 'heap_free_asc':
+        arr.sort((a, b) => a.heap_free - b.heap_free)
+        break
+      case 'heap_free_desc':
+        arr.sort((a, b) => b.heap_free - a.heap_free)
+        break
+      case 'flash_free_asc':
+        arr.sort((a, b) => a.flash_free - b.flash_free)
+        break
+      case 'flash_free_desc':
+        arr.sort((a, b) => b.flash_free - a.flash_free)
+        break
+      case 'flash_used_asc':
+        arr.sort((a, b) => (a.flash_size - a.flash_free) - (b.flash_size - b.flash_free))
+        break
+      case 'flash_used_desc':
+        arr.sort((a, b) => (b.flash_size - b.flash_free) - (a.flash_size - a.flash_free))
+        break
+    }
+    return arr
+  }
+
   return list
 })
-
-// 格式化运行时间
-const formatUptime = (seconds: number) => {
-  const days = Math.floor(seconds / 86400)
-  const hours = Math.floor((seconds % 86400) / 3600)
-  const mins = Math.floor((seconds % 3600) / 60)
-  const secs = seconds % 60
-  if (days > 0) return `${days}天 ${hours}小时 ${mins}分`
-  if (hours > 0) return `${hours}小时 ${mins}分 ${secs}秒`
-  return `${mins}分 ${secs}秒`
-}
 
 // 格式化字节
 const formatBytes = (bytes: number) => {
@@ -98,10 +140,17 @@ const handleUdpMessage = (_event: any, data: any) => {
 
     const deviceId = payload.id || ip
 
+    // 从设备列表查找名称和运行时间：优先按设备号匹配，其次按IP匹配
+    const devInfo = deviceInfoMap.value.get(payload.id)
+      || deviceInfoMap.value.get(ip)
+      || deviceInfoMap.value.get(deviceId)
+
     const status: DeviceStatus = {
       deviceId,
       clientId: payload.clientId || '',
+      name: devInfo?.name || '',
       uptime: payload.uptime || 0,
+      runtime: devInfo?.runtime ?? payload.uptime ?? 0,
       heap_free: payload.heap_free || 0,
       heap_total: payload.heap_total || 0,
       flash_free: payload.flash_free || 0,
@@ -125,6 +174,25 @@ const handleUdpMessage = (_event: any, data: any) => {
 
 onMounted(() => {
   window.electronAPI.onUdpMessageReceived(handleUdpMessage)
+
+  // 监听设备列表更新，建立 设备号/ip→名称/运行时间 双键映射
+  window.electronAPI.onDeviceDiscovered((list: any[]) => {
+    const newMap = new Map<string, DeviceListInfo>()
+    for (const dev of list) {
+      if (!dev.id) continue
+      const info: DeviceListInfo = {
+        name: dev.name || '',
+        runtime: dev.runtime || 0,
+        ip: dev.ip || '',
+      }
+      // 同时按设备号和IP建索引，方便资源消息通过任一key匹配
+      newMap.set(dev.id, info)
+      if (dev.ip) {
+        newMap.set(dev.ip, info)
+      }
+    }
+    deviceInfoMap.value = newMap
+  })
 })
 
 onBeforeUnmount(() => {
@@ -149,6 +217,14 @@ onBeforeUnmount(() => {
         <el-radio-button value="ETH">ETH</el-radio-button>
         <el-radio-button value="WiFi">WiFi</el-radio-button>
       </el-radio-group>
+      <el-select v-model="sortType" placeholder="排序方式" class="sort-select" size="default">
+        <el-option
+            v-for="opt in sortOptions"
+            :key="opt.value"
+            :label="opt.label"
+            :value="opt.value"
+        />
+      </el-select>
       <span class="device-count">共 {{ filteredDevices.length }} 台设备</span>
     </div>
 
@@ -163,6 +239,7 @@ onBeforeUnmount(() => {
       <div class="device-header">
         <div class="device-title">
           <span class="chip-badge">{{ device.chip_model }}</span>
+          <span v-if="device.name" class="device-name">{{ device.name }}</span>
           <span class="device-id">{{ device.deviceId }}</span>
           <span v-if="device.clientId" class="client-id">{{ device.clientId }}</span>
         </div>
@@ -180,7 +257,7 @@ onBeforeUnmount(() => {
         <div class="stat-card uptime-card">
           <div class="stat-card-icon">⏱</div>
           <div class="stat-card-body">
-            <div class="stat-card-value">{{ formatUptime(device.uptime) }}</div>
+            <div class="stat-card-value">{{ formatRuntime(device.runtime) }}</div>
             <div class="stat-card-label">运行时间</div>
           </div>
         </div>
@@ -355,6 +432,10 @@ onBeforeUnmount(() => {
   width: 260px;
 }
 
+.sort-select {
+  width: 200px;
+}
+
 .resource-search :deep(.el-input__wrapper) {
   border: 1px solid #c0c4cc;
   box-shadow: 0 0 0 1px rgba(59,130,246,0.1);
@@ -443,6 +524,12 @@ onBeforeUnmount(() => {
   font-weight: 600;
   color: #333;
   font-family: 'Consolas', monospace;
+}
+
+.device-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #409eff;
 }
 
 .client-id {
@@ -685,7 +772,26 @@ html.dark .resource-search .el-radio-button__original-radio:checked + .el-radio-
   border-color: #58a6ff !important;
   color: #58a6ff !important;
 }
+html.dark .resource-search .sort-select .el-input__wrapper {
+  background: #2a2a2a !important;
+  border-color: #444 !important;
+  box-shadow: none !important;
+}
+html.dark .resource-search .sort-select .el-input__wrapper:hover {
+  border-color: #58a6ff !important;
+}
+html.dark .resource-search .sort-select .el-input__wrapper.is-focus {
+  border-color: #58a6ff !important;
+  box-shadow: 0 0 0 2px rgba(88,166,255,0.2) !important;
+}
+html.dark .resource-search .sort-select .el-input__inner {
+  color: #e0e0e0 !important;
+}
 html.dark .device-count {
   color: #a0aec0;
+}
+
+html.dark .device-name {
+  color: #58a6ff !important;
 }
 </style>
