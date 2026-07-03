@@ -1302,22 +1302,43 @@ ipcMain.handle('get-system-info', async () => {
     // —— 收集网络累计字节 ——
     try {
         if (plat === 'win32') {
-            const out = await new Promise<string>((resolve, reject) => {
-                exec('netstat -e', { timeout: 3000, encoding: 'utf-8' }, (err, stdout) => {
+            const buf = await new Promise<Buffer>((resolve, reject) => {
+                exec('netstat -e', { timeout: 5000, encoding: 'buffer' }, (err, stdout) => {
                     if (err) return reject(err)
                     resolve(stdout)
                 })
             })
-            // netstat -e 输出:
-            //    Bytes                   12345678       87654321
-            //    Unicast packets          ...
+            // netstat -e 输出在中文 Windows 上是 GBK 编码，需要解码
+            let out = ''
+            try { out = new TextDecoder('gbk').decode(buf) } catch { out = buf.toString('utf-8') }
+            // 行格式: "Bytes                      12345678       87654321" 或 "字节"
             const lines = out.split(/\r?\n/).map(l => l.trim())
-            const bytesLine = lines.find(l => l.startsWith('Bytes'))
+            const bytesLine = lines.find(l => l.startsWith('Bytes') || l.startsWith('字节'))
             if (bytesLine) {
                 const parts = bytesLine.split(/\s+/).slice(1)
                 if (parts.length >= 2) {
                     netIO.push({ name: '总流量', rxBytes: parseInt(parts[0]) || 0, txBytes: parseInt(parts[1]) || 0 })
                 }
+            }
+
+            // netstat -e 失败时，用 PowerShell 作为备选
+            if (netIO.length === 0) {
+                try {
+                    const psBuf = await new Promise<Buffer>((resolve, reject) => {
+                        const cmd = `powershell -Command "$if=(Get-NetAdapterStatistics | Where-Object {$_.Name -like '*Ethernet*' -or $_.Name -like '*Wi-Fi*' -or $_.Name -like '*WLAN*'} | Select-Object -First 1); Write-Host ($if.ReceivedBytes) ($if.SentBytes)"`
+                        exec(cmd, { timeout: 8000, encoding: 'buffer' }, (err, stdout) => {
+                            if (err) return reject(err)
+                            resolve(stdout)
+                        })
+                    })
+                    const psOut = psBuf.toString('utf-8').trim()
+                    if (psOut) {
+                        const parts = psOut.split(/\s+/)
+                        if (parts.length >= 2) {
+                            netIO.push({ name: '总流量', rxBytes: parseInt(parts[0]) || 0, txBytes: parseInt(parts[1]) || 0 })
+                        }
+                    }
+                } catch { /* PowerShell 备选也失败 */ }
             }
         } else if (plat === 'linux') {
             const out = await new Promise<string>((resolve, reject) => {
@@ -1351,24 +1372,57 @@ ipcMain.handle('get-system-info', async () => {
     // —— 收集磁盘累计字节 ——
     try {
         if (plat === 'win32') {
-            const out = await new Promise<string>((resolve, reject) => {
-                exec('wmic path Win32_PerfRawData_PerfDisk_PhysicalDisk get Name,DiskReadBytesPerSec,DiskWriteBytesPerSec /format:csv', { timeout: 3000, encoding: 'utf-8' }, (err, stdout) => {
+            // typeperf 直接返回当前瞬时速率 (Bytes/sec)，无需累计计算
+            const buf = await new Promise<Buffer>((resolve, reject) => {
+                exec('typeperf "\\PhysicalDisk(_Total)\\Disk Read Bytes/sec" "\\PhysicalDisk(_Total)\\Disk Write Bytes/sec" -sc 1',
+                    { timeout: 5000, encoding: 'buffer' }, (err, stdout) => {
                     if (err) return reject(err)
                     resolve(stdout)
                 })
             })
-            for (const line of out.split(/\r?\n/).slice(1)) {
-                const parts = line.split(',')
-                if (parts.length >= 3) {
-                    const name = (parts[1] || '').replace(/^"|"$/g, '').trim()
-                    if (name && name !== '_Total') {
-                        diskIO.push({
-                            name,
-                            readBytes: parseInt(parts[2]) || 0,
-                            writeBytes: parseInt(parts[3]) || 0,
-                        })
+            let out = ''
+            try { out = buf.toString('utf-8') } catch { out = buf.toString() }
+            // typeperf 输出示例（带引号的 CSV）：
+            // "(PDH-CSV 4.0)","\\HOST\PhysicalDisk..."
+            // "07/17/2026 12:00:00.000","12345.678","9876.543"
+            const lines = out.split(/\r?\n/).filter(l => l.includes(',') && l.includes('"'))
+            if (lines.length >= 2) {
+                // 解析第二行（数据行）：去掉日期时间后取 CSV 字段
+                const dataLine = lines[1]
+                const vals = dataLine.match(/"([0-9.eE+-]+)"/g)
+                if (vals && vals.length >= 2) {
+                    const readBytes = parseFloat(vals[0].replace(/"/g, ''))
+                    const writeBytes = parseFloat(vals[1].replace(/"/g, ''))
+                    if (!isNaN(readBytes) && !isNaN(writeBytes)) {
+                        // typeperf 已经给出速率 (Bytes/sec)，作为 instantaneous read/write
+                        diskIO.push({ name: '总磁盘', readBytes: readBytes, writeBytes: writeBytes })
                     }
                 }
+            }
+    
+            // 如果 typeperf 失败，尝试 PowerShell 采 WMI 格式化计数器
+            if (diskIO.length === 0) {
+                try {
+                    const psBuf = await new Promise<Buffer>((resolve, reject) => {
+                        exec(`powershell -Command "Get-Counter '\\PhysicalDisk(_Total)\\Disk Read Bytes/sec','\\PhysicalDisk(_Total)\\Disk Write Bytes/sec' | Select -Expand CounterSamples | ForEach { '{0}={1}' -f $_.Path.Split('\\\\')[-1].Replace(')','').Replace('(',''), $_.CookedValue }"`,
+                            { timeout: 8000, encoding: 'buffer' }, (err, stdout) => {
+                            if (err) return reject(err)
+                            resolve(stdout)
+                        })
+                    })
+                    const lines = psBuf.toString('utf-8').split(/\r?\n/).filter(l => l.includes('='))
+                    let readVal = 0, writeVal = 0
+                    for (const line of lines) {
+                        const parts = line.split('=')
+                        if (parts.length >= 2) {
+                            if (parts[0].toLowerCase().includes('read')) readVal = parseFloat(parts[1]) || 0
+                            if (parts[0].toLowerCase().includes('write')) writeVal = parseFloat(parts[1]) || 0
+                        }
+                    }
+                    if (readVal > 0 || writeVal > 0) {
+                        diskIO.push({ name: '总磁盘', readBytes: readVal, writeBytes: writeVal })
+                    }
+                } catch { /* PowerShell 备选也失败 */ }
             }
         } else if (plat === 'linux') {
             const out = await new Promise<string>((resolve, reject) => {
@@ -1403,6 +1457,17 @@ ipcMain.handle('get-system-info', async () => {
         }
     } catch { /* 磁盘 IO 采集失败 */ }
 
+    // —— 磁盘 IO 聚合：多条物理磁盘合并为一条 "总磁盘"，避免条数波动 ——
+    // typeperf 已经返回速率 (Bytes/sec)，不参与累计差值计算，直接透传
+    if (diskIO.length > 0) {
+        let totalRead = 0, totalWrite = 0
+        for (const d of diskIO) { totalRead += d.readBytes; totalWrite += d.writeBytes }
+        diskIO.length = 0
+        diskIO.push({ name: '总磁盘', readBytes: totalRead, writeBytes: totalWrite })
+    }
+    // typeperf 返回瞬时速率标记
+    const diskUseDirectRate = plat === 'win32' && diskIO.length > 0
+
     // —— 计算速率（通过与上次采样的差值 / 时间间隔）——
     const now = Date.now()
     const networkRate: { name: string; rxSpeed: number; txSpeed: number }[] = []
@@ -1421,16 +1486,25 @@ ipcMain.handle('get-system-info', async () => {
         _prevNet[io.name] = { rx: io.rxBytes, tx: io.txBytes, time: now }
     }
     for (const io of diskIO) {
-        const prev = _prevDisk[io.name]
-        if (prev && prev.time) {
-            const dt = (now - prev.time) / 1000
+        if (diskUseDirectRate) {
+            // typeperf 已将速率作为 readBytes/writeBytes，直接使用
             diskRate.push({
                 name: io.name,
-                readSpeed: dt > 0 ? Math.max(0, (io.readBytes - prev.read) / dt) : 0,
-                writeSpeed: dt > 0 ? Math.max(0, (io.writeBytes - prev.write) / dt) : 0,
+                readSpeed: io.readBytes,
+                writeSpeed: io.writeBytes,
             })
+        } else {
+            const prev = _prevDisk[io.name]
+            if (prev && prev.time) {
+                const dt = (now - prev.time) / 1000
+                diskRate.push({
+                    name: io.name,
+                    readSpeed: dt > 0 ? Math.max(0, (io.readBytes - prev.read) / dt) : 0,
+                    writeSpeed: dt > 0 ? Math.max(0, (io.writeBytes - prev.write) / dt) : 0,
+                })
+            }
+            _prevDisk[io.name] = { read: io.readBytes, write: io.writeBytes, time: now }
         }
-        _prevDisk[io.name] = { read: io.readBytes, write: io.writeBytes, time: now }
     }
 
     return {

@@ -14,21 +14,6 @@
 
         <div class="dashboard" v-loading="loading">
           <template v-if="systemInfo">
-            <!-- 顶部栏 -->
-            <div class="header">
-              <div class="header-left">
-                <h1>系统监控中心</h1>
-                <span class="badge">{{ systemInfo.electronVersion?.split('.').slice(0,2).join('.') || 'v1.0' }}</span>
-              </div>
-              <div class="header-right">
-                <span class="status-label">
-                  <span class="status-dot"></span> 运行中
-                </span>
-                <span class="host-info">{{ systemInfo.hostname }}</span>
-                <span class="host-info">·</span>
-                <span class="host-info">{{ formatUptimeShort(systemInfo.uptime) }}</span>
-              </div>
-            </div>
 
             <!-- 共享 SVG 渐变定义 -->
             <svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
@@ -96,7 +81,7 @@
                     <span class="gauge-sub">{{ systemInfo.cpuCores }} 核</span>
                   </div>
                 </div>
-                <div class="sub-text" style="text-align:center; margin-top:10px;">{{ systemInfo.cpuModel?.slice(0, 30) }}...</div>
+                <div class="sub-text model-text" style="text-align:center; margin-top:10px;">{{ systemInfo.cpuModel }}</div>
               </div>
 
               <!-- 第3列：内存 + 磁盘（纵向堆叠） -->
@@ -138,6 +123,65 @@
                       <div class="mini-bar"><div class="mini-fill" :style="{ width: d.usage + '%' }"></div></div>
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- 第二行：磁盘IO  + 网络IO                     -->
+            <!-- ========================================== -->
+            <div class="grid-io">
+              <!-- 磁盘 IO -->
+              <div class="card">
+                <div class="card-title">
+                  <el-icon :size="18"><FolderOpened /></el-icon>
+                  <span>磁盘 IO</span>
+                </div>
+                <div class="net-chart-wrap" v-if="diskHistory.length >= 2">
+                  <div class="net-legend">
+                    <span class="net-lgd io-lgd-read"><i></i>读</span>
+                    <span class="net-lgd io-lgd-write"><i></i>写</span>
+                  </div>
+                  <svg :viewBox="`0 0 ${chartW} ${chartH}`" class="net-chart-svg" preserveAspectRatio="none">
+                    <polyline :points="diskChartPointsRead" fill="none" stroke="#22c55e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                    <polyline :points="diskChartPointsWrite" fill="none" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </div>
+                <div v-else class="sub-text" style="text-align:center; padding: 12px 0;">采集数据中…</div>
+                <div v-if="systemInfo.diskRate?.length" class="net-now">
+                  <template v-for="dio in systemInfo.diskRate" :key="dio.name">
+                    <span class="nio-label" style="color:#22c55e">读 {{ formatSpeed(dio.readSpeed) }}</span>
+                    <span class="nio-sep">|</span>
+                    <span class="nio-label" style="color:#ef4444">写 {{ formatSpeed(dio.writeSpeed) }}</span>
+                  </template>
+                </div>
+              </div>
+
+              <!-- 网络 IO -->
+              <div class="card">
+                <div class="card-title">
+                  <el-icon :size="18"><Connection /></el-icon>
+                  <span>网络 IO</span>
+                </div>
+                <!-- 折线图 -->
+                <div class="net-chart-wrap" v-if="netHistory.length >= 2">
+                  <div class="net-legend">
+                    <span class="net-lgd net-lgd-dl"><i></i>下载</span>
+                    <span class="net-lgd net-lgd-ul"><i></i>上传</span>
+                  </div>
+                  <svg :viewBox="`0 0 ${chartW} ${chartH}`" class="net-chart-svg" preserveAspectRatio="none">
+                    <polyline :points="netChartPointsRx" fill="none" stroke="#3b82f6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                    <polyline :points="netChartPointsTx" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </div>
+                <div v-else class="sub-text" style="text-align:center; padding: 12px 0;">采集数据中…</div>
+                <!-- 当前速率 -->
+                <div v-if="systemInfo.networkRate?.length" class="net-now">
+                  <template v-for="nio in systemInfo.networkRate" :key="nio.name">
+                    <span class="nio-label io-down">↓ {{ formatSpeed(nio.rxSpeed) }}</span>
+                    <span class="nio-sep">|</span>
+                    <span class="nio-label io-up">↑ {{ formatSpeed(nio.txSpeed) }}</span>
+                  </template>
                 </div>
               </div>
             </div>
@@ -314,6 +358,8 @@ const activeTab = ref('dashboard')
 
 interface NetworkInfo { name: string; ip: string; mac: string; netmask: string }
 interface DiskInfo { path: string; total: number; used: number; free: number; usage: number }
+interface NetIORate { name: string; rxSpeed: number; txSpeed: number }
+interface DiskIORate { name: string; readSpeed: number; writeSpeed: number }
 interface SystemInfo {
   hostname: string; platform: string; arch: string; osType: string; osRelease: string
   cpuModel: string; cpuCores: number; cpuUsage: number
@@ -321,6 +367,7 @@ interface SystemInfo {
   uptime: number; networks: NetworkInfo[]; disks: DiskInfo[]
   nodeVersion: string; electronVersion: string; chromeVersion: string
   gpuModel: string; gpuUsage: number
+  networkRate: NetIORate[]; diskRate: DiskIORate[]
 }
 
 const systemInfo = ref<SystemInfo | null>(null)
@@ -330,12 +377,58 @@ const loading2 = ref(true)
 let timer: number | null = null
 let refreshTimer: number | null = null
 
+// 网络 IO 历史（最近 20 个点，用于折线图）
+const netHistory = ref<{ rx: number; tx: number }[]>([])
+const MAX_NET_POINTS = 20
+
+const pushNetHistory = () => {
+  if (!systemInfo.value?.networkRate?.length) return
+  const nio = systemInfo.value.networkRate[0]
+  netHistory.value.push({ rx: nio.rxSpeed, tx: nio.txSpeed })
+  if (netHistory.value.length > MAX_NET_POINTS) netHistory.value.shift()
+}
+
+// 磁盘 IO 历史
+const diskHistory = ref<{ read: number; write: number }[]>([])
+
+const pushDiskHistory = () => {
+  if (!systemInfo.value?.diskRate?.length) return
+  const dio = systemInfo.value.diskRate[0]
+  diskHistory.value.push({ read: dio.readSpeed, write: dio.writeSpeed })
+  if (diskHistory.value.length > MAX_NET_POINTS) diskHistory.value.shift()
+}
+
+// SVG 折线图常量
+const chartW = 280
+const chartH = 70
+const chartPad = 3
+
+const makePoints = (pts: { a: number; b: number }[], getVal: (p: { a: number; b: number }) => number) => {
+  if (pts.length < 2) return ''
+  const maxV = Math.max(1, ...pts.map(p => Math.max(getVal(p), 0)))
+  return pts.map((p, i) => {
+    const x = chartPad + (i / (MAX_NET_POINTS - 1)) * (chartW - 2 * chartPad)
+    const y = chartH - chartPad - (Math.max(0, getVal(p)) / maxV) * (chartH - 2 * chartPad)
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+}
+
+const netChartPointsRx = computed(() => makePoints(netHistory.value, p => p.rx))
+const netChartPointsTx = computed(() => makePoints(netHistory.value, p => p.tx))
+
+const diskChartPointsRead = computed(() => makePoints(diskHistory.value, p => p.read))
+const diskChartPointsWrite = computed(() => makePoints(diskHistory.value, p => p.write))
+
 const formatBytes = (bytes: number) => {
   if (!bytes) return '0 B'
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
+}
+const formatSpeed = (bytesPerSec: number) => {
+  if (!bytesPerSec || bytesPerSec < 0) return '0 B/s'
+  return formatBytes(bytesPerSec) + '/s'
 }
 const formatUptimeShort = (seconds: number) => {
   const d = Math.floor(seconds / 86400)
@@ -379,7 +472,7 @@ const updateTime = () => {
   currentTime.value = new Date().toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 }
 const fetchSystemInfo = async () => {
-  try { systemInfo.value = await window.electronAPI.getSystemInfo() } catch (e) { console.error(e) }
+  try { systemInfo.value = await window.electronAPI.getSystemInfo(); pushNetHistory(); pushDiskHistory() } catch (e) { console.error(e) }
   finally { loading.value = false; loading2.value = false }
 }
 
@@ -483,8 +576,12 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer); if (refreshTimer) clear
 }
 .gauge-sub { font-size: 12px; color: #909399; font-weight: 500; text-align: center; }
 .gauge-model-text {
-  font-size: 11px; color: #909399; margin-top: 10px; text-align: center;
-  word-break: break-all; line-height: 1.4;
+  font-size: 13px; color: #666; margin-top: 10px; text-align: center;
+  word-break: break-word; line-height: 1.5; padding: 0 4px;
+}
+.model-text {
+  font-size: 12px; color: #666; line-height: 1.5; word-break: break-word;
+  white-space: normal;
 }
 
 /* 自定义进度条 */
@@ -518,6 +615,32 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer); if (refreshTimer) clear
 .mini-fill.mini-danger {
   background: linear-gradient(90deg, #ef4444, #ec4899);
 }
+
+/* IO 监控行 */
+.grid-io { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+.io-list { display: flex; flex-direction: column; gap: 8px; }
+.io-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
+.io-row:last-child { border-bottom: none; }
+.io-name { font-weight: 600; color: #333; min-width: 60px; flex-shrink: 0; }
+.io-label { font-size: 11px; color: #909399; font-weight: 600; text-transform: uppercase; flex-shrink: 0; }
+.io-down { color: #3b82f6; }
+.io-up { color: #f59e0b; }
+.io-val { font-family: 'SF Mono','Consolas',monospace; color: #555; font-weight: 500; }
+.io-high { color: #f56c6c; font-weight: 700; }
+
+/* 网络折线图 */
+.net-chart-wrap { width: 100%; height: 70px; margin-bottom: 8px; }
+.net-chart-svg { width: 100%; height: 100%; overflow: visible; }
+.net-legend { display: flex; justify-content: center; gap: 16px; margin-bottom: 4px; font-size: 11px; }
+.net-lgd { display: inline-flex; align-items: center; gap: 4px; color: #909399; font-weight: 500; }
+.net-lgd i { display: inline-block; width: 12px; height: 2px; border-radius: 1px; }
+.net-lgd-dl i { background: #3b82f6; }
+.net-lgd-ul i { background: #f59e0b; }
+.io-lgd-read i { background: #22c55e; }
+.io-lgd-write i { background: #ef4444; }
+.net-now { display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 13px; padding-top: 6px; border-top: 1px solid #f0f0f0; }
+.nio-label { font-family: 'SF Mono','Consolas',monospace; font-weight: 600; }
+.nio-sep { color: #dcdfe6; }
 
 /* 网络 */
 .network-grid { display: flex; flex-wrap: wrap; gap: 16px 32px; }
@@ -563,10 +686,18 @@ html.dark .gauge-bg { stroke: rgba(255,255,255,0.06); }
 html.dark .gauge-ticks-ring { stroke: rgba(255,255,255,0.08); }
 html.dark .gauge-sub { color: #7d8bb0; }
 html.dark .gauge-model-text { color: #7d8bb0; }
+html.dark .model-text { color: #7d8bb0; }
 html.dark .card-meta { color: #7d8bb0; }
 html.dark .disk-row { color: #99a8c9; }
 html.dark .disk-row span:first-child { color: #7d8bb0; }
 html.dark .mini-bar { background: rgba(255,255,255,0.06); }
+html.dark .io-row { border-bottom-color: rgba(255,255,255,0.04); }
+html.dark .io-name { color: #e8edf5; }
+html.dark .io-label { color: #7d8bb0; }
+html.dark .io-val { color: #b0bcdb; }
+html.dark .net-now { border-top-color: rgba(255,255,255,0.04); }
+html.dark .net-lgd { color: #7d8bb0; }
+html.dark .nio-sep { color: rgba(255,255,255,0.1); }
 html.dark .net-label { color: #7d8bb0; }
 html.dark .net-value { color: #e8edf5; }
 html.dark .net-mac { color: #99a8c9; }
@@ -603,6 +734,7 @@ html.green .gauge-bg { stroke: rgba(255,255,255,0.06); }
 html.green .gauge-ticks-ring { stroke: rgba(255,255,255,0.08); }
 html.green .gauge-sub { color: #6ee7b7; }
 html.green .gauge-model-text { color: #6ee7b7; }
+html.green .model-text { color: #6ee7b7; }
 html.green .progress-bar .fill:not(.warning):not(.danger) { background: linear-gradient(90deg, #16a34a, #22d3ee, #6366f1); }
 html.green .progress-bar .fill.warning { background: linear-gradient(90deg, #fbbf24, #f59e0b, #ef4444); }
 html.green .progress-bar .fill.danger { background: linear-gradient(90deg, #ef4444, #ec4899, #a855f7); }
@@ -610,6 +742,13 @@ html.green .card-meta { color: #6ee7b7; }
 html.green .disk-row { color: #86efac; }
 html.green .disk-row span:first-child { color: #6ee7b7; }
 html.green .mini-bar { background: rgba(255,255,255,0.06); }
+html.green .io-row { border-bottom-color: rgba(255,255,255,0.04); }
+html.green .io-name { color: #ecfdf5; }
+html.green .io-label { color: #6ee7b7; }
+html.green .io-val { color: #a7f3d0; }
+html.green .net-now { border-top-color: rgba(255,255,255,0.04); }
+html.green .net-lgd { color: #6ee7b7; }
+html.green .nio-sep { color: rgba(255,255,255,0.1); }
 html.green .mini-fill:not(.mini-warn):not(.mini-danger) { background: linear-gradient(90deg, #16a34a, #22d3ee); }
 html.green .mini-fill.mini-warn { background: linear-gradient(90deg, #f59e0b, #f97316); }
 html.green .mini-fill.mini-danger { background: linear-gradient(90deg, #ef4444, #ec4899); }
