@@ -341,8 +341,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="serial-tools">
-    <h2 class="page-title">串口工具</h2>
-
     <div class="main-layout">
       <!-- 左侧：连接 + 终端 -->
       <div class="left-panel">
@@ -486,13 +484,6 @@ onBeforeUnmount(() => {
   flex-direction: column;
 }
 
-.page-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: #333;
-  margin: 0 0 12px 0;
-}
-
 .main-layout {
   display: flex;
   gap: 16px;
@@ -539,9 +530,14 @@ onBeforeUnmount(() => {
   font-family: 'Consolas', monospace;
   font-size: 12px;
   color: #d4d4d4;
-  min-height: 200px;
+  min-height: 120px;
   user-select: text;
   cursor: text;
+  scrollbar-width: none;
+}
+
+.terminal::-webkit-scrollbar {
+  display: none;
 }
 
 .empty-hint { color: #666; text-align: center; padding: 50px 0; }

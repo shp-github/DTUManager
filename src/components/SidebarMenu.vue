@@ -24,7 +24,7 @@
           @select="handleMenuSelect"
       >
         <el-menu-item index="/devices" @contextmenu.prevent="(e) => openContextMenu(e, '/devices')">
-          <el-icon><Cpu /></el-icon>
+          <el-icon><Monitor /></el-icon>
           <template #title>设备列表</template>
         </el-menu-item>
         <el-menu-item index="/upgrade" @contextmenu.prevent="(e) => openContextMenu(e, '/upgrade')">
@@ -40,29 +40,26 @@
           <template #title>设备资源</template>
         </el-menu-item>
         <el-menu-item index="/monitoring" @contextmenu.prevent="(e) => openContextMenu(e, '/monitoring')">
-          <el-icon><View /></el-icon>
+          <el-icon><Connection /></el-icon>
           <template #title>数据监听</template>
         </el-menu-item>
-
-        <el-menu-item index="/dhcp" @contextmenu.prevent="(e) => openContextMenu(e, '/dhcp')">
-          <el-icon><Link /></el-icon>
-          <template #title>DHCP分配</template>
-        </el-menu-item>
-        <el-menu-item index="/network-tools" @contextmenu.prevent="(e) => openContextMenu(e, '/network-tools')">
-          <el-icon><Operation /></el-icon>
-          <template #title>网络工具</template>
-        </el-menu-item>
-        <el-menu-item index="/serial-tools" @contextmenu.prevent="(e) => openContextMenu(e, '/serial-tools')">
-          <el-icon><Connection /></el-icon>
-          <template #title>串口工具</template>
-        </el-menu-item>
         <el-menu-item index="/log" @contextmenu.prevent="(e) => openContextMenu(e, '/log')">
-          <el-icon><Notebook /></el-icon>
+          <el-icon><Document /></el-icon>
           <template #title>日志管理</template>
         </el-menu-item>
-        <el-menu-item index="/local-info" @contextmenu.prevent="(e) => openContextMenu(e, '/local-info')">
-          <el-icon><InfoFilled /></el-icon>
-          <template #title>本地信息</template>
+        <el-menu-item index="/tools" @contextmenu.prevent="(e) => openContextMenu(e, '/tools')">
+          <el-icon><Tools /></el-icon>
+          <template #title>常用工具</template>
+        </el-menu-item>
+
+        <el-menu-item index="/local-settings" @contextmenu.prevent="(e) => openContextMenu(e, '/local-settings')">
+          <el-icon><Setting /></el-icon>
+          <template #title>系统设置</template>
+        </el-menu-item>
+
+        <el-menu-item index="/system-monitor" @contextmenu.prevent="(e) => openContextMenu(e, '/system-monitor')">
+          <el-icon><Cpu /></el-icon>
+          <template #title>资源监控</template>
         </el-menu-item>
 
       </el-menu>
@@ -113,14 +110,14 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Expand, Fold, Cpu, TrendCharts, DataAnalysis, View, Link, Operation, Connection, Notebook, InfoFilled, Upload, Setting, TopRight } from '@element-plus/icons-vue'
+import { Expand, Fold, Monitor, TrendCharts, DataAnalysis, Connection, Tools, Document, Upload, Setting, TopRight, Cpu } from '@element-plus/icons-vue'
 import { useTheme } from '../composables/useTheme'
 import type { ThemeType } from '../composables/useTheme'
 
 const router = useRouter()
 const route = useRoute()
 const activeMenu = ref(route.path)
-const isCollapsed = ref(true)
+const isCollapsed = ref(false)
 const { currentTheme, setTheme, themes } = useTheme()
 
 // 切换菜单折叠状态

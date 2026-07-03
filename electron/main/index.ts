@@ -13,6 +13,27 @@ import SimpleDHCPServer, {DHCPServerConfig} from './simple-dhcp-server';
 import {UDPServer} from './udp-server'
 import MQTTServer from './mqtt-server'
 
+// =================== 控制台时间戳 ===================
+// 重写 console 方法，为所有控制台输出添加时间戳
+const _origLog = console.log.bind(console)
+const _origWarn = console.warn.bind(console)
+const _origError = console.error.bind(console)
+const _origInfo = console.info.bind(console)
+
+function _timestamp(): string {
+    const now = new Date()
+    const hh = String(now.getHours()).padStart(2, '0')
+    const mm = String(now.getMinutes()).padStart(2, '0')
+    const ss = String(now.getSeconds()).padStart(2, '0')
+    const ms = String(now.getMilliseconds()).padStart(3, '0')
+    return `${hh}:${mm}:${ss}.${ms}`
+}
+
+console.log = (...args: any[]) => _origLog(`[${_timestamp()}]`, ...args)
+console.warn = (...args: any[]) => _origWarn(`[${_timestamp()}]`, ...args)
+console.error = (...args: any[]) => _origError(`[${_timestamp()}]`, ...args)
+console.info = (...args: any[]) => _origInfo(`[${_timestamp()}]`, ...args)
+
 // =================== 日志服务 ===================
 let LOGS_DIR = ''
 
@@ -102,6 +123,10 @@ let win: BrowserWindow | null = null
 let mqttServer: MQTTServer | null = null
 let udpServer: UDPServer | null = null
 let dhcpServer: SimpleDHCPServer | null = null
+
+// IO 速率缓存
+const _prevNet: Record<string, { rx: number; tx: number; time: number }> = {}
+const _prevDisk: Record<string, { read: number; write: number; time: number }> = {}
 
 const preload = path.join(__dirname, '../preload/index.mjs')
 const indexHtml = path.join(RENDERER_DIST, 'index.html')
@@ -229,7 +254,107 @@ async function startAllServices() {
     // 3. 启动MQTT服务
     await startMQTTServer()
 
+    // 4. 注册升级API处理器
+    setupUpgradeAPIHandler()
+
     console.log('✅ 所有服务已启动完成')
+}
+
+// ----------------- 注册升级API处理器 -----------------
+function setupUpgradeAPIHandler(): void {
+    fileServer.setUpgradeHandler(async (request) => {
+        const { deviceId, fileName, fileSize } = request;
+
+        try {
+            // 1. 通过设备ID查找设备IP
+            if (!udpServer) {
+                return { success: false, error: 'UDP服务未启动' };
+            }
+
+            const devices = udpServer.getDevices();
+            const targetDevice = devices.find(d => d.id === deviceId);
+
+            if (!targetDevice) {
+                return {
+                    success: false,
+                    error: `未找到设备: ${deviceId}，请确认设备已在线`
+                };
+            }
+
+            const deviceIp = targetDevice.ip;
+            console.log(`🔍 [API] 设备 ${deviceId} -> IP: ${deviceIp}`);
+
+            // 2. 通过UDP发送升级命令到设备
+            const fileServerStatus = fileServer.getStatus();
+            const upgradeResult = await udpServer.sendUpgradeCommand(deviceIp, fileName, {
+                port: fileServerStatus.port,
+                fileSize
+            });
+
+            if (!upgradeResult.success) {
+                return {
+                    success: false,
+                    error: upgradeResult.error || '发送升级命令失败'
+                };
+            }
+
+            console.log(`📡 [API] UDP升级命令已发送: ${deviceIp}`);
+
+            // 3. 通过MQTT推送升级消息（OTA通知）
+            if (mqttServer && upgradeResult.downloadUrl) {
+                const topic = `/server/cmd/${deviceId}`;
+                const message = JSON.stringify({
+                    type: 'ota',
+                    downloadUrl: upgradeResult.downloadUrl
+                });
+
+                try {
+                    mqttServer.publish(topic, message, { qos: 1 });
+                    console.log(`📤 [API] MQTT已推送: ${topic}`);
+                } catch (mqttErr: any) {
+                    console.warn(`⚠️ [API] MQTT推送失败: ${mqttErr.message}`);
+                }
+            }
+
+            // 4. 等待设备通过MQTT上报升级进度（最长等待2分钟）
+            if (mqttServer) {
+                console.log(`⏳ [API] 等待设备 ${deviceId} 上报升级结果...`);
+                const otaResult = await mqttServer.waitForOtaProgress(deviceId, 120000);
+
+                if (otaResult.success) {
+                    return {
+                        success: true,
+                        downloadUrl: upgradeResult.downloadUrl,
+                        status: otaResult.status,
+                        progress: otaResult.progress,
+                        message: `设备 ${deviceId} 升级完成`
+                    };
+                } else {
+                    return {
+                        success: false,
+                        downloadUrl: upgradeResult.downloadUrl,
+                        status: otaResult.status,
+                        progress: otaResult.progress,
+                        error: otaResult.error || '升级失败',
+                        message: `设备 ${deviceId} 升级失败: ${otaResult.error || '未知错误'}`
+                    };
+                }
+            }
+
+            // MQTT服务未运行，UDP命令已发送即返回成功
+            return {
+                success: true,
+                downloadUrl: upgradeResult.downloadUrl,
+                message: `升级命令已发送到设备 ${deviceId}（未启用MQTT进度监听）`
+            };
+        } catch (error: any) {
+            console.error('❌ [API] 升级处理器异常:', error);
+            return {
+                success: false,
+                error: error.message || '升级处理失败'
+            };
+        }
+    });
 }
 
 
@@ -975,6 +1100,16 @@ ipcMain.handle('get-service-status', async () => {
     }
 })
 
+// HTTP 升级配置
+ipcMain.handle('set-http-upgrade-config', async (_event, enabled: boolean, password: string) => {
+    fileServer.setUpgradeConfig(enabled, password)
+    return { success: true }
+})
+
+ipcMain.handle('get-http-upgrade-config', async () => {
+    return fileServer.getUpgradeConfig()
+})
+
 // 获取本机IP地址
 ipcMain.handle('get-local-ip', async () => {
     const interfaces = os.networkInterfaces()
@@ -1079,6 +1214,225 @@ ipcMain.handle('get-system-info', async () => {
         }
     } catch { /* ignore */ }
 
+    // 获取 GPU 信息
+    let gpuModel = '未知'
+    let gpuUsage = 0
+    try {
+        // 优先用 WMIC 获取 Windows GPU 型号（更可靠）
+        if (process.platform === 'win32') {
+            try {
+                const wmicOut = await new Promise<string>((resolve, reject) => {
+                    exec('wmic path win32_VideoController get Name /format:list', { timeout: 3000, encoding: 'utf-8' }, (err, stdout) => {
+                        if (err) return reject(err)
+                        resolve(stdout)
+                    })
+                })
+                const lines = wmicOut.split(/\r?\n/).map(l => l.trim()).filter(l => l.startsWith('Name='))
+                const gpuNames = lines.map(l => l.replace(/^Name=/,'').trim()).filter(Boolean)
+                // 优先取独显（通常描述更长或有 NVIDIA/AMD 字样）
+                const discrete = gpuNames.find(n => /(NVIDIA|AMD|Radeon|RTX|GTX|RX|Arc)/i.test(n))
+                gpuModel = discrete || gpuNames[0] || '未知'
+            } catch { /* wmic 失败 */ }
+        } else if (process.platform === 'linux') {
+            try {
+                const lspci = await new Promise<string>((resolve, reject) => {
+                    exec('lspci | grep -Ei "vga|3d|display" | head -1', { timeout: 3000, encoding: 'utf-8' }, (err, stdout) => {
+                        if (err) return reject(err)
+                        resolve(stdout)
+                    })
+                })
+                if (lspci) {
+                    // 格式如 "01:00.0 VGA compatible controller: NVIDIA Corporation GA106 [GeForce RTX 3060]"
+                    const m = lspci.match(/:\s*(.+)$/)
+                    gpuModel = m ? m[1].trim() : lspci.trim()
+                }
+            } catch { /* lspci 失败 */ }
+        } else if (process.platform === 'darwin') {
+            try {
+                const sysProf = await new Promise<string>((resolve, reject) => {
+                    exec('system_profiler SPDisplaysDataType | grep -E "Chipset Model|^\\s+Chipset" | head -1', { timeout: 3000, encoding: 'utf-8' }, (err, stdout) => {
+                        if (err) return reject(err)
+                        resolve(stdout)
+                    })
+                })
+                if (sysProf) {
+                    const m = sysProf.match(/:\s*(.+)$/)
+                    gpuModel = m ? m[1].trim() : sysProf.trim()
+                }
+            } catch { /* system_profiler 失败 */ }
+        }
+    } catch { /* 整体 GPU 检测失败 */ }
+
+    // 尝试用 Electron getGPUInfo 作为补充
+    if (gpuModel === '未知') {
+        try {
+            const gpuInfo = await app.getGPUInfo('basic')
+            const raw = gpuInfo as any
+            // 兼容多种返回结构
+            const gpus = raw?.gpuDevice || raw?.info?.gpuDevice || []
+            if (gpus.length > 0) {
+                gpuModel = gpus[0].deviceString || gpus[0].vendorString || '未知'
+                if (gpus.length > 1 && gpus[1].deviceString) {
+                    gpuModel = gpus[1].deviceString
+                }
+            }
+        } catch { /* */ }
+    }
+
+    // 尝试获取 NVIDIA GPU 使用率 (仅 Windows)
+    if (process.platform === 'win32') {
+        try {
+            const nvidiaSmi = await new Promise<string>((resolve, reject) => {
+                exec('nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits', { timeout: 3000 }, (err, stdout) => {
+                    if (err) return reject(err)
+                    resolve(stdout.toString().trim())
+                })
+            })
+            const usage = parseInt(nvidiaSmi)
+            if (!isNaN(usage)) gpuUsage = usage
+        } catch { /* nvidia-smi 不可用 */ }
+    }
+
+    // ====== IO 统计（磁盘读写 + 网络收发速率） ======
+    const diskIO: { name: string; readBytes: number; writeBytes: number }[] = []
+    const netIO: { name: string; rxBytes: number; txBytes: number }[] = []
+
+    const plat = process.platform
+
+    // —— 收集网络累计字节 ——
+    try {
+        if (plat === 'win32') {
+            const out = await new Promise<string>((resolve, reject) => {
+                exec('netstat -e', { timeout: 3000, encoding: 'utf-8' }, (err, stdout) => {
+                    if (err) return reject(err)
+                    resolve(stdout)
+                })
+            })
+            // netstat -e 输出:
+            //    Bytes                   12345678       87654321
+            //    Unicast packets          ...
+            const lines = out.split(/\r?\n/).map(l => l.trim())
+            const bytesLine = lines.find(l => l.startsWith('Bytes'))
+            if (bytesLine) {
+                const parts = bytesLine.split(/\s+/).slice(1)
+                if (parts.length >= 2) {
+                    netIO.push({ name: '总流量', rxBytes: parseInt(parts[0]) || 0, txBytes: parseInt(parts[1]) || 0 })
+                }
+            }
+        } else if (plat === 'linux') {
+            const out = await new Promise<string>((resolve, reject) => {
+                exec('cat /proc/net/dev', { timeout: 3000, encoding: 'utf-8' }, (err, stdout) => {
+                    if (err) return reject(err)
+                    resolve(stdout)
+                })
+            })
+            for (const line of out.split('\n').slice(2)) {
+                const m = line.match(/^\s*(\w+):\s*(\d+)\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+\d+\s+(\d+)/)
+                if (m && m[1] !== 'lo') {
+                    netIO.push({ name: m[1], rxBytes: parseInt(m[2]), txBytes: parseInt(m[3]) })
+                }
+            }
+        } else if (plat === 'darwin') {
+            const out = await new Promise<string>((resolve, reject) => {
+                exec('netstat -ib | grep -v lo0', { timeout: 3000, encoding: 'utf-8' }, (err, stdout) => {
+                    if (err) return reject(err)
+                    resolve(stdout)
+                })
+            })
+            for (const line of out.split('\n').slice(1)) {
+                const m = line.match(/^\s*(\w+)\s+\S+\s+\S+\s+\S+\s+(\d+)\s+\S+\s+\S+\s+\S+\s+(\d+)/)
+                if (m && m[1] !== 'lo0') {
+                    netIO.push({ name: m[1], rxBytes: parseInt(m[2]), txBytes: parseInt(m[3]) })
+                }
+            }
+        }
+    } catch { /* 网络 IO 采集失败 */ }
+
+    // —— 收集磁盘累计字节 ——
+    try {
+        if (plat === 'win32') {
+            const out = await new Promise<string>((resolve, reject) => {
+                exec('wmic path Win32_PerfRawData_PerfDisk_PhysicalDisk get Name,DiskReadBytesPerSec,DiskWriteBytesPerSec /format:csv', { timeout: 3000, encoding: 'utf-8' }, (err, stdout) => {
+                    if (err) return reject(err)
+                    resolve(stdout)
+                })
+            })
+            for (const line of out.split(/\r?\n/).slice(1)) {
+                const parts = line.split(',')
+                if (parts.length >= 3) {
+                    const name = (parts[1] || '').replace(/^"|"$/g, '').trim()
+                    if (name && name !== '_Total') {
+                        diskIO.push({
+                            name,
+                            readBytes: parseInt(parts[2]) || 0,
+                            writeBytes: parseInt(parts[3]) || 0,
+                        })
+                    }
+                }
+            }
+        } else if (plat === 'linux') {
+            const out = await new Promise<string>((resolve, reject) => {
+                exec('cat /proc/diskstats', { timeout: 3000, encoding: 'utf-8' }, (err, stdout) => {
+                    if (err) return reject(err)
+                    resolve(stdout)
+                })
+            })
+            for (const line of out.split('\n')) {
+                const m = line.match(/^\s*\d+\s+\d+\s+(\S+)\s+\S+\s+\S+\s+\S+\s+\S+\s+(\d+)\s+\S+\s+\S+\s+\S+\s+(\d+)/)
+                if (m && !m[1].startsWith('loop') && !m[1].startsWith('ram')) {
+                    // 扇区数 * 512 = 字节
+                    diskIO.push({ name: m[1], readBytes: (parseInt(m[2]) || 0) * 512, writeBytes: (parseInt(m[3]) || 0) * 512 })
+                }
+            }
+        } else if (plat === 'darwin') {
+            const out = await new Promise<string>((resolve, reject) => {
+                exec('iostat -d -c 1', { timeout: 3000, encoding: 'utf-8' }, (err, stdout) => {
+                    if (err) return reject(err)
+                    resolve(stdout)
+                })
+            })
+            // macOS iostat 输出的是瞬时速率 KB/t，但需要多次采样
+            // 简化处理：第一行 header，第二行数据
+            const lines = out.split('\n').filter(l => l.trim())
+            if (lines.length >= 2) {
+                const parts = lines[lines.length - 1].split(/\s+/).filter(Boolean)
+                if (parts.length >= 3) {
+                    diskIO.push({ name: 'disk0', readBytes: (parseFloat(parts[1]) || 0) * 1024, writeBytes: (parseFloat(parts[2]) || 0) * 1024 })
+                }
+            }
+        }
+    } catch { /* 磁盘 IO 采集失败 */ }
+
+    // —— 计算速率（通过与上次采样的差值 / 时间间隔）——
+    const now = Date.now()
+    const networkRate: { name: string; rxSpeed: number; txSpeed: number }[] = []
+    const diskRate: { name: string; readSpeed: number; writeSpeed: number }[] = []
+
+    for (const io of netIO) {
+        const prev = _prevNet[io.name]
+        if (prev && prev.time) {
+            const dt = (now - prev.time) / 1000
+            networkRate.push({
+                name: io.name,
+                rxSpeed: dt > 0 ? Math.max(0, (io.rxBytes - prev.rx) / dt) : 0,
+                txSpeed: dt > 0 ? Math.max(0, (io.txBytes - prev.tx) / dt) : 0,
+            })
+        }
+        _prevNet[io.name] = { rx: io.rxBytes, tx: io.txBytes, time: now }
+    }
+    for (const io of diskIO) {
+        const prev = _prevDisk[io.name]
+        if (prev && prev.time) {
+            const dt = (now - prev.time) / 1000
+            diskRate.push({
+                name: io.name,
+                readSpeed: dt > 0 ? Math.max(0, (io.readBytes - prev.read) / dt) : 0,
+                writeSpeed: dt > 0 ? Math.max(0, (io.writeBytes - prev.write) / dt) : 0,
+            })
+        }
+        _prevDisk[io.name] = { read: io.readBytes, write: io.writeBytes, time: now }
+    }
+
     return {
         hostname: os.hostname(),
         platform: os.platform(),
@@ -1098,6 +1452,10 @@ ipcMain.handle('get-system-info', async () => {
         nodeVersion: process.versions.node,
         electronVersion: process.versions.electron,
         chromeVersion: process.versions.chrome,
+        gpuModel,
+        gpuUsage,
+        networkRate,
+        diskRate,
     }
 })
 

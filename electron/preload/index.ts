@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     saveConfig: (config: any) => ipcRenderer.invoke('save-config', config),
     loadConfig: () => ipcRenderer.invoke('load-config'),
     readDeviceConfig: (params: any) => ipcRenderer.invoke('read-device-config', params),
+    getDevices: () => ipcRenderer.invoke('getDevices'),
     openChildWindow: (page: string) => ipcRenderer.invoke('open-win', page),
     onDeviceDiscovered: (callback: (devices: any[]) => void) => ipcRenderer.on('udp-device-discovered', (_, devices) => callback(devices)),
     sendConfig: (payload: { ip: string; config: any }) => ipcRenderer.invoke('sendConfig', payload),
@@ -107,6 +108,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     readLogFile: (date: string, deviceId: string, protocol: string) =>
         ipcRenderer.invoke('read-log-file', { date, deviceId, protocol }),
 
+    // HTTP 升级配置
+    setHttpUpgradeConfig: (enabled: boolean, password: string) =>
+        ipcRenderer.invoke('set-http-upgrade-config', enabled, password),
+    getHttpUpgradeConfig: () => ipcRenderer.invoke('get-http-upgrade-config'),
 
 })
 

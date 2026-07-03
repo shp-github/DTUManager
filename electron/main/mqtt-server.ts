@@ -344,6 +344,74 @@ class MQTTServer extends EventEmitter {
         return this.clients.has(clientId);
     }
 
+    // 等待设备OTA升级进度消息
+    // 监听 /dev/ota/{deviceId} 主题，直到 status=completed 或 error 或超时
+    async waitForOtaProgress(
+        deviceId: string,
+        timeoutMs: number = 120000
+    ): Promise<{
+        success: boolean;
+        status: string;
+        progress: number;
+        error?: string;
+    }> {
+        return new Promise((resolve) => {
+            const topic = `/dev/ota/${deviceId}`;
+            let settled = false;
+
+            const handler = (packet: any, client: any) => {
+                if (settled || !client) return; // 只监听设备端发布的消息
+                if (packet.topic !== topic) return;
+
+                try {
+                    const payloadStr = packet.payload.toString();
+                    const payload = JSON.parse(payloadStr);
+                    const { status, progress } = payload;
+
+                    console.log(`📥 [OTA进度] deviceId=${deviceId}, status=${status}, progress=${progress}`);
+
+                    if (status === 'completed' || status === 'success') {
+                        settled = true;
+                        cleanup();
+                        resolve({ success: true, status, progress: progress ?? 100 });
+                    } else if (status === 'error' || status === 'failed') {
+                        settled = true;
+                        cleanup();
+                        resolve({
+                            success: false,
+                            status,
+                            progress: progress ?? 0,
+                            error: payload.error || payload.message || '设备上报升级失败'
+                        });
+                    }
+                } catch {
+                    // 忽略无法解析的消息
+                }
+            };
+
+            const timer = setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                console.warn(`⏰ [OTA进度] deviceId=${deviceId} 等待超时 (${timeoutMs}ms)`);
+                resolve({
+                    success: false,
+                    status: 'timeout',
+                    progress: 0,
+                    error: `等待设备升级结果超时 (${timeoutMs / 1000}秒)`
+                });
+            }, timeoutMs);
+
+            const cleanup = () => {
+                clearTimeout(timer);
+                this.broker?.removeListener('publish', handler);
+            };
+
+            this.broker?.on('publish', handler);
+            console.log(`👂 [OTA] 开始监听设备升级进度: ${topic}`);
+        });
+    }
+
     private getNetworkAddresses(): string[] {
         const networkInterfaces = os.networkInterfaces();
         const addresses: string[] = [];

@@ -118,7 +118,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import UpgradeDialog from '../components/UpgradeDialog.vue'
 import TerminalDialog from '../components/TerminalDialog.vue'
@@ -129,6 +129,7 @@ import {
   getNetworkIcon,
   formatRuntime,
 } from '../composables/useSignal'
+import { useRefreshInterval } from '../composables/useRefreshInterval'
 
 const router = useRouter()
 
@@ -259,6 +260,29 @@ watch(upgradeDialogVisible, (newVal, oldVal) => {
 })
 
 // ========== 生命周期 ==========
+const { interval: refreshInterval } = useRefreshInterval()
+let refreshTimer: ReturnType<typeof setInterval> | null = null
+
+// 启动/重启定时刷新
+function startRefreshTimer() {
+  if (refreshTimer) clearInterval(refreshTimer)
+  if (refreshInterval.value <= 0) return
+  refreshTimer = setInterval(async () => {
+    try {
+      const devices = await window.electronAPI.getDevices()
+      if (devices && Array.isArray(devices)) {
+        rawDeviceList.value = [...devices]
+        applyFiltersAndSort()
+      }
+    } catch { /* ignore */ }
+  }, refreshInterval.value)
+}
+
+// 监听间隔变化，重启定时器
+watch(refreshInterval, () => {
+  startRefreshTimer()
+})
+
 onMounted(() => {
   window.electronAPI.onDeviceDiscovered((list: any[]) => {
     if (!multipleSelection.value || !multipleSelection.value.length || multipleSelection.value.length === 0) {
@@ -266,6 +290,16 @@ onMounted(() => {
       applyFiltersAndSort()
     }
   })
+
+  // 启动定时刷新
+  startRefreshTimer()
+})
+
+onBeforeUnmount(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
 })
 </script>
 
