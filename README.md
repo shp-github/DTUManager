@@ -27,6 +27,8 @@
 | 固件升级 |
 |---|
 | ![固件升级](image/%E5%9B%BA%E4%BB%B6%E5%8D%87%E7%BA%A7.png) |
+![升级实时上报进度.png](image/%E5%8D%87%E7%BA%A7%E5%AE%9E%E6%97%B6%E4%B8%8A%E6%8A%A5%E8%BF%9B%E5%BA%A6.png)
+![批量升级.png](image/%E6%89%B9%E9%87%8F%E5%8D%87%E7%BA%A7.png)
 
 ---
 

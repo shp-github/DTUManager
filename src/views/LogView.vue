@@ -95,6 +95,42 @@
       </div>
     </el-card>
 
+    <!-- Ctrl+F 搜索栏（参考串口工具） -->
+    <div v-if="searchVisible" class="search-bar">
+      <div class="search-input-wrap">
+        <svg class="search-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input
+          ref="searchInputRef"
+          v-model="searchQuery"
+          type="text"
+          class="search-input"
+          placeholder="查找..."
+          @keydown.enter="nextMatch"
+          @keydown.escape="closeSearch"
+        />
+      </div>
+      <span class="search-count" v-if="searchQuery.trim()">
+        {{ searchMatches.length > 0 ? `${currentMatchIndex + 1} / ${searchMatches.length}` : '0 / 0' }}
+      </span>
+      <button class="search-btn" @click="prevMatch" :disabled="searchMatches.length === 0" title="上一个 (Shift+Enter)">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="18 15 12 9 6 15"/>
+        </svg>
+      </button>
+      <button class="search-btn" @click="nextMatch" :disabled="searchMatches.length === 0" title="下一个 (Enter)">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      <button class="search-btn search-close-btn" @click="closeSearch" title="关闭 (Esc)">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
     <!-- 日志内容 -->
     <el-card class="log-content-card" shadow="never">
       <template #header>
@@ -142,10 +178,11 @@
               v-for="(line, idx) in filteredLines"
               :key="idx"
               class="log-line"
-              :class="getLineClass(line)"
+              :class="[getLineClass(line), { 'log-line-active': currentMatchLineIdx === idx }]"
+              :data-log-idx="idx"
             >
               <span v-if="showLineNumbers" class="line-number">{{ line.originalIndex + 1 }}</span>
-              <span class="line-content" v-html="highlightLine(line.text)"></span>
+              <span class="line-content" v-html="highlightLine(line.text, idx)"></span>
             </div>
           </div>
         </template>
@@ -155,7 +192,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, watch, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Search, Refresh, Document, FolderOpened } from '@element-plus/icons-vue'
 
 // 日期列表
@@ -184,6 +221,30 @@ const logContentRef = ref<HTMLElement | null>(null)
 
 // 定时器
 let refreshTimer: ReturnType<typeof setInterval> | null = null
+
+// ========== Ctrl+F 搜索 ==========
+const searchVisible = ref(false)
+const searchQuery = ref('')
+const currentMatchIndex = ref(0)
+const searchInputRef = ref<HTMLInputElement | null>(null)
+
+// 搜索匹配的行索引列表（在 filteredLines 中的索引）
+const searchMatches = computed(() => {
+  if (!searchQuery.value.trim()) return [] as number[]
+  const query = searchQuery.value.toLowerCase()
+  return filteredLines.value
+    .map((line, idx) => line.text.toLowerCase().includes(query) ? idx : -1)
+    .filter(i => i !== -1)
+})
+
+// 当前匹配行在 filteredLines 中的索引
+const currentMatchLineIdx = computed(() => {
+  if (searchMatches.value.length === 0) return -1
+  return searchMatches.value[currentMatchIndex.value] ?? -1
+})
+
+// 搜索条件变化时重置索引
+watch(searchQuery, () => { currentMatchIndex.value = 0 })
 
 // 加载日期列表
 async function loadDates() {
@@ -349,14 +410,27 @@ function onSearch() {
   applyFilter()
 }
 
-// 高亮搜索关键词
-function highlightLine(text: string): string {
-  const keyword = searchKeyword.value.trim()
-  if (!keyword) return escapeHtml(text)
-  const escaped = escapeHtml(text)
-  const escapedKeyword = escapeHtml(keyword)
-  const regex = new RegExp(`(${escapedKeyword})`, 'gi')
-  return escaped.replace(regex, '<mark class="search-highlight">$1</mark>')
+// 高亮搜索关键词（过滤词 + Ctrl+F 搜索词）
+function highlightLine(text: string, lineIdx: number): string {
+  let html = escapeHtml(text)
+
+  // 高亮过滤关键词（橙色）
+  const filterKw = searchKeyword.value.trim()
+  if (filterKw) {
+    const escapedKw = escapeHtml(filterKw).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    html = html.replace(new RegExp(`(${escapedKw})`, 'gi'), '<mark class="search-highlight">$1</mark>')
+  }
+
+  // 高亮 Ctrl+F 搜索词
+  const ctrlFKw = searchQuery.value.trim()
+  if (ctrlFKw) {
+    const isActiveLine = currentMatchLineIdx.value === lineIdx
+    const cls = isActiveLine ? 'search-highlight-current' : 'search-highlight-ctrlf'
+    const escapedCk = escapeHtml(ctrlFKw).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    html = html.replace(new RegExp(`(${escapedCk})`, 'gi'), `<mark class="${cls}">$1</mark>`)
+  }
+
+  return html
 }
 
 function escapeHtml(str: string): string {
@@ -378,6 +452,52 @@ function getLineClass(line: { text: string }): string {
 function scrollToBottom() {
   if (autoScroll.value && logContentRef.value) {
     logContentRef.value.scrollTop = logContentRef.value.scrollHeight
+  }
+}
+
+// ========== Ctrl+F 搜索方法 ==========
+function openSearch() {
+  searchVisible.value = true
+  nextTick(() => { searchInputRef.value?.focus() })
+}
+
+function closeSearch() {
+  searchVisible.value = false
+  searchQuery.value = ''
+  currentMatchIndex.value = 0
+}
+
+function scrollToCurrentMatch() {
+  if (searchMatches.value.length === 0) return
+  const idx = currentMatchLineIdx.value
+  if (idx >= 0) {
+    nextTick(() => {
+      const el = document.querySelector(`[data-log-idx="${idx}"]`)
+      el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+  }
+}
+
+function prevMatch() {
+  if (searchMatches.value.length === 0) return
+  currentMatchIndex.value = (currentMatchIndex.value - 1 + searchMatches.value.length) % searchMatches.value.length
+  scrollToCurrentMatch()
+}
+
+function nextMatch() {
+  if (searchMatches.value.length === 0) return
+  currentMatchIndex.value = (currentMatchIndex.value + 1) % searchMatches.value.length
+  scrollToCurrentMatch()
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+    e.preventDefault()
+    openSearch()
+    return
+  }
+  if (e.key === 'Escape' && searchVisible.value && document.activeElement === searchInputRef.value) {
+    closeSearch()
   }
 }
 
@@ -403,10 +523,12 @@ watch(selectedProtocol, () => {
 // 初始化
 onMounted(() => {
   loadDates()
+  window.addEventListener('keydown', onKeydown)
 })
 
 // 清理
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeydown)
   if (refreshTimer) {
     clearInterval(refreshTimer)
     refreshTimer = null
@@ -551,6 +673,7 @@ onBeforeUnmount(() => {
   color: #6a9955;
 }
 
+/* 搜索高亮 */
 :deep(.search-highlight) {
   background-color: #e8a030;
   color: #000;
@@ -558,6 +681,109 @@ onBeforeUnmount(() => {
   border-radius: 2px;
   font-weight: bold;
 }
+
+/* Ctrl+F 搜索匹配高亮 */
+:deep(.search-highlight-ctrlf) {
+  background: rgba(255, 204, 0, 0.4);
+  color: #fff;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* 当前激活匹配高亮 */
+:deep(.search-highlight-current) {
+  background: rgba(255, 152, 0, 0.65);
+  color: #fff;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* 当前匹配行高亮 */
+.log-line-active {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-left: 2px solid #409eff;
+  padding-left: 10px;
+}
+
+/* ========== 搜索栏（Ctrl+F） ========== */
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: #252526;
+  border: 1px solid #333;
+  border-top: none;
+  animation: search-bar-in 0.15s ease-out;
+}
+
+@keyframes search-bar-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.search-input-wrap {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  background: #1e1e1e;
+  border: 1px solid #555;
+  border-radius: 4px;
+  padding: 3px 8px;
+  gap: 6px;
+}
+
+.search-input-wrap:focus-within {
+  border-color: #409eff;
+}
+
+.search-icon {
+  color: #888;
+  flex-shrink: 0;
+}
+
+.search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #d4d4d4;
+  font-size: 12px;
+  padding: 3px 0;
+  min-width: 0;
+  font-family: inherit;
+}
+
+.search-input::placeholder { color: #777; }
+
+.search-count {
+  font-size: 11px;
+  color: #999;
+  white-space: nowrap;
+  min-width: 50px;
+  text-align: center;
+  user-select: none;
+}
+
+.search-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #ccc;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.search-btn:hover { background: #444; }
+.search-btn:disabled { color: #555; background: transparent; cursor: default; }
+
+.search-close-btn:hover { background: rgba(245, 108, 108, 0.2); color: #f56c6c; }
 
 /* 滚动条样式 */
 .log-content::-webkit-scrollbar {

@@ -269,6 +269,8 @@ function startRefreshTimer() {
   if (refreshInterval.value <= 0) return
   refreshTimer = setInterval(async () => {
     try {
+      // 勾选设备时不刷新列表，避免选中状态丢失
+      if (multipleSelection.value && multipleSelection.value.length > 0) return
       const devices = await window.electronAPI.getDevices()
       if (devices && Array.isArray(devices)) {
         rawDeviceList.value = [...devices]

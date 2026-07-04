@@ -10,6 +10,13 @@ interface LogEntry {
   client: string
 }
 
+interface DeviceInfo {
+  id: string
+  name: string
+  ip: string
+  mac: string
+}
+
 // ========== 公共状态 ==========
 const activeTab = ref('mqtt')
 
@@ -21,6 +28,8 @@ const mqttAutoScroll = ref(true)
 const mqttTopicFilter = ref('')
 const maxLogs = 2000
 let mqttLogId = 0
+
+const mqttKeywordFilter = ref('')
 
 const mqttTopicFilterOptions = [
   { label: '全部主题', value: '' },
@@ -37,6 +46,42 @@ const udpTerminalRef = ref<HTMLElement | null>(null)
 const udpListening = ref(true)
 const udpAutoScroll = ref(true)
 let udpLogId = 0
+
+const udpKeywordFilter = ref('')
+const udpSourceFilter = ref('')
+
+// IP → 设备信息 映射
+const deviceInfoMap = ref<Map<string, DeviceInfo>>(new Map())
+
+// UDP 来源设备下拉选项（动态跟随设备列表）
+const udpSourceOptions = computed(() => {
+  const seen = new Set<string>()
+  const options: { label: string; value: string }[] = []
+  for (const log of udpLogs.value) {
+    const ip = log.client
+    if (ip === 'system' || seen.has(ip)) continue
+    seen.add(ip)
+    const dev = deviceInfoMap.value.get(ip)
+    if (dev) {
+      options.push({ label: `${dev.name} (${dev.id}) - ${dev.ip}`, value: ip })
+    } else {
+      options.push({ label: `未知设备 - ${ip}`, value: ip })
+    }
+  }
+  return options
+})
+
+const filteredUdpLogs = computed(() => {
+  let logs = udpLogs.value
+  if (udpSourceFilter.value) {
+    logs = logs.filter(log => log.client === udpSourceFilter.value)
+  }
+  if (udpKeywordFilter.value) {
+    const kw = udpKeywordFilter.value.toLowerCase()
+    logs = logs.filter(log => log.payload.toLowerCase().includes(kw) || log.topic.toLowerCase().includes(kw))
+  }
+  return logs
+})
 
 // ========== 公共方法 ==========
 const formatTime = () => {
@@ -75,8 +120,15 @@ const handleMqttMessage = (_event: any, data: any) => {
 }
 
 const filteredMqttLogs = computed(() => {
-  if (!mqttTopicFilter.value) return mqttLogs.value
-  return mqttLogs.value.filter(log => log.topic.startsWith(mqttTopicFilter.value))
+  let logs = mqttLogs.value
+  if (mqttTopicFilter.value) {
+    logs = logs.filter(log => log.topic.startsWith(mqttTopicFilter.value))
+  }
+  if (mqttKeywordFilter.value) {
+    const kw = mqttKeywordFilter.value.toLowerCase()
+    logs = logs.filter(log => log.payload.toLowerCase().includes(kw) || log.topic.toLowerCase().includes(kw))
+  }
+  return logs
 })
 
 const clearMqttLogs = () => { mqttLogs.value = []; mqttLogId = 0 }
@@ -109,17 +161,34 @@ const clearUdpLogs = () => { udpLogs.value = []; udpLogId = 0 }
 const toggleUdpListening = () => { udpListening.value = !udpListening.value }
 
 // ========== 生命周期 ==========
+let deviceDiscoveredHandler: ((list: any[]) => void) | null = null
+
 onMounted(() => {
   window.electronAPI.onMqttMessagePublished(handleMqttMessage)
   addMqttLog('system', 'MQTT监听已启动，正在监听所有设备消息...', 'system')
 
   window.electronAPI.onUdpMessageReceived(handleUdpMessage)
   addUdpLog('system', 'UDP监听已启动，正在监听端口4210设备消息...', 'system')
+
+  // 监听设备列表更新，建立 IP→设备信息 映射，用于下拉过滤
+  deviceDiscoveredHandler = (list: any[]) => {
+    const newMap = new Map<string, DeviceInfo>()
+    for (const dev of list) {
+      if (!dev.id || !dev.ip) continue
+      newMap.set(dev.ip, { id: dev.id, name: dev.name || '', ip: dev.ip, mac: dev.mac || '' })
+    }
+    deviceInfoMap.value = newMap
+  }
+  window.electronAPI.onDeviceDiscovered(deviceDiscoveredHandler)
 })
 
 onBeforeUnmount(() => {
   window.electronAPI.removeMqttListeners()
   window.electronAPI.removeUdpListeners()
+  if (deviceDiscoveredHandler) {
+    window.electronAPI.off('udp-device-discovered', deviceDiscoveredHandler)
+    deviceDiscoveredHandler = null
+  }
 })
 </script>
 
@@ -142,6 +211,7 @@ onBeforeUnmount(() => {
           <el-select v-model="mqttTopicFilter" placeholder="主题过滤" size="small" style="width: 150px">
             <el-option v-for="opt in mqttTopicFilterOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
+          <el-input v-model="mqttKeywordFilter" placeholder="关键字搜索" size="small" clearable style="width: 160px" />
           <el-tag :type="mqttListening ? 'success' : 'info'" size="small">
             {{ mqttListening ? '监听中' : '已暂停' }}
           </el-tag>
@@ -157,7 +227,7 @@ onBeforeUnmount(() => {
           <el-tag type="info" size="small">{{ filteredMqttLogs.length }}/{{ mqttLogs.length }} 条</el-tag>
         </div>
       </div>
-      <div class="terminal" ref="mqttTerminalRef" @mousedown.prevent>
+      <div class="terminal" ref="mqttTerminalRef">
         <div v-for="log in filteredMqttLogs" :key="log.id" class="log-line" :class="{ 'log-system': log.client === 'system' }">
           <div class="log-header">
             <span class="log-time">{{ log.timestamp }}</span>
@@ -174,6 +244,10 @@ onBeforeUnmount(() => {
     <div v-show="activeTab === 'udp'" class="panel">
       <div class="toolbar">
         <div class="toolbar-actions">
+          <el-select v-model="udpSourceFilter" placeholder="来源设备" size="small" clearable style="width: 240px">
+            <el-option v-for="opt in udpSourceOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+          </el-select>
+          <el-input v-model="udpKeywordFilter" placeholder="关键字搜索" size="small" clearable style="width: 160px" />
           <el-tag :type="udpListening ? 'success' : 'info'" size="small">
             {{ udpListening ? '监听中' : '已暂停' }}
           </el-tag>
@@ -186,18 +260,18 @@ onBeforeUnmount(() => {
             <el-icon><Delete /></el-icon>
             清空
           </el-button>
-          <el-tag type="info" size="small">{{ udpLogs.length }} 条</el-tag>
+          <el-tag type="info" size="small">{{ filteredUdpLogs.length }}/{{ udpLogs.length }} 条</el-tag>
         </div>
       </div>
-      <div class="terminal" ref="udpTerminalRef" @mousedown.prevent>
-        <div v-for="log in udpLogs" :key="log.id" class="log-line" :class="{ 'log-system': log.client === 'system' }">
+      <div class="terminal" ref="udpTerminalRef">
+        <div v-for="log in filteredUdpLogs" :key="log.id" class="log-line" :class="{ 'log-system': log.client === 'system' }">
           <div class="log-header">
             <span class="log-time">{{ log.timestamp }}</span>
             <span class="log-client" v-if="log.client !== 'system'">[{{ log.topic }}]</span>
           </div>
           <pre class="log-payload">{{ log.payload }}</pre>
         </div>
-        <div v-if="udpLogs.length === 0" class="empty-hint">暂无数据，等待设备UDP消息...</div>
+        <div v-if="filteredUdpLogs.length === 0" class="empty-hint">暂无数据，等待设备UDP消息...</div>
       </div>
     </div>
   </div>
@@ -291,6 +365,8 @@ onBeforeUnmount(() => {
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 13px;
   line-height: 1.6;
+  user-select: text;
+  cursor: text;
 }
 
 .terminal::-webkit-scrollbar {

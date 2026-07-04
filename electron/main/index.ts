@@ -64,14 +64,19 @@ function getTimeStr(): string {
     return `${hh}:${mm}:${ss}.${ms}`
 }
 
+function getCurrentHourStr(): string {
+    return String(new Date().getHours()).padStart(2, '0')
+}
+
 function writeLog(deviceId: string, protocol: 'udp' | 'mqtt', content: string, deviceName?: string) {
     try {
         const dateStr = getCurrentDateStr()
+        const hourStr = getCurrentHourStr()
         const logDir = path.join(getLogsDir(), dateStr, deviceId)
         if (!fs.existsSync(logDir)) {
             fs.mkdirSync(logDir, { recursive: true })
         }
-        const logFile = path.join(logDir, `${protocol}.log`)
+        const logFile = path.join(logDir, `${protocol}_${hourStr}.log`)
         const timeStr = getTimeStr()
         const logLine = `[${timeStr}] ${content}\n`
         fs.appendFileSync(logFile, logLine, 'utf-8')
@@ -2101,12 +2106,29 @@ ipcMain.handle('get-log-files', async (_event, { date, deviceId }: { date: strin
     }
 })
 
-// 读取日志文件内容
+// 读取日志文件内容（按小时合并，时间正序）
 ipcMain.handle('read-log-file', async (_event, { date, deviceId, protocol }: { date: string; deviceId: string; protocol: string }) => {
     try {
-        const logFile = path.join(getLogsDir(), date, deviceId, `${protocol}.log`)
-        if (!fs.existsSync(logFile)) return ''
-        return fs.readFileSync(logFile, 'utf-8')
+        const deviceDir = path.join(getLogsDir(), date, deviceId)
+        if (!fs.existsSync(deviceDir)) return ''
+
+        // 收集所有 protocol_HH.log 文件，按小时排序后合并
+        const pattern = new RegExp(`^${protocol}_(\\d{2})\\.log$`)
+        const hourFiles: { hour: string; file: string }[] = []
+        for (const f of fs.readdirSync(deviceDir)) {
+            const m = f.match(pattern)
+            if (m) {
+                hourFiles.push({ hour: m[1], file: f })
+            }
+        }
+        hourFiles.sort((a, b) => a.hour.localeCompare(b.hour))
+
+        // 合并所有小时文件
+        const contents = hourFiles.map(hf =>
+            fs.readFileSync(path.join(deviceDir, hf.file), 'utf-8').trim()
+        ).filter(c => c.length > 0)
+
+        return contents.join('\n')
     } catch {
         return ''
     }

@@ -77,6 +77,9 @@
           <el-tag type="success" v-if="selectedDeviceIds.length > 0" size="small">
             {{ selectedDeviceIds.length }}台
           </el-tag>
+          <button class="select-all-btn" @click="toggleSelectAll" :class="{ active: isAllSelected }">
+            {{ isAllSelected ? '取消全选' : '全选' }}
+          </button>
           <el-switch
               v-model="autoRefreshEnabled"
               active-text="自动"
@@ -89,11 +92,11 @@
               clearable
               style="width: 200px; margin-left: 8px;"
           />
-          <el-select v-model="networkTypeFilter" placeholder="全部" clearable style="width: 100px; margin-left: 6px;">
-            <el-option label="全部" value="" />
-            <el-option label="ETH" value="ETH" />
-            <el-option label="WiFi" value="WiFi" />
-          </el-select>
+          <el-radio-group v-model="networkTypeFilter" size="default" style="margin-left: 6px;">
+            <el-radio-button value="">全部</el-radio-button>
+            <el-radio-button value="ETH">ETH</el-radio-button>
+            <el-radio-button value="WiFi">WiFi</el-radio-button>
+          </el-radio-group>
         </div>
 
         <div class="device-cards-grid" v-if="filteredDevices.length > 0">
@@ -214,6 +217,25 @@ const toggleDeviceSelection = (device: any) => {
     arr.push(device.id)
   }
   selectedDeviceIds.value = arr
+}
+
+// 全选/取消全选
+const isAllSelected = computed(() => {
+  if (filteredDevices.value.length === 0) return false
+  return filteredDevices.value.every(d => selectedDeviceIds.value.includes(d.id))
+})
+
+const toggleSelectAll = () => {
+  if (isAllSelected.value) {
+    // 取消全选：移除当前筛选可见的设备
+    const visibleIds = new Set(filteredDevices.value.map(d => d.id))
+    selectedDeviceIds.value = selectedDeviceIds.value.filter(id => !visibleIds.has(id))
+  } else {
+    // 全选当前筛选可见的设备
+    const visibleIds = filteredDevices.value.map(d => d.id)
+    const newSet = new Set([...selectedDeviceIds.value, ...visibleIds])
+    selectedDeviceIds.value = Array.from(newSet)
+  }
 }
 
 // -- 文件操作 --
@@ -501,6 +523,28 @@ onMounted(() => {
   font-weight: 600;
   color: #303133;
   flex-wrap: wrap;
+}
+
+.select-all-btn {
+  font-size: 12px;
+  padding: 2px 10px;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  background: #fff;
+  color: #606266;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.select-all-btn:hover {
+  border-color: #409eff;
+  color: #409eff;
+}
+
+.select-all-btn.active {
+  background: #409eff;
+  border-color: #409eff;
+  color: #fff;
 }
 
 .file-selected-bar {

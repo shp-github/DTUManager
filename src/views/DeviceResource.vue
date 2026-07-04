@@ -83,10 +83,10 @@ const filteredDevices = computed(() => {
         arr.sort((a, b) => b.flash_free - a.flash_free)
         break
       case 'flash_used_asc':
-        arr.sort((a, b) => (a.flash_size - a.flash_free) - (b.flash_size - b.flash_free))
+        arr.sort((a, b) => (a.flash_total - a.flash_free) - (b.flash_total - b.flash_free))
         break
       case 'flash_used_desc':
-        arr.sort((a, b) => (b.flash_size - b.flash_free) - (a.flash_size - a.flash_free))
+        arr.sort((a, b) => (b.flash_total - b.flash_free) - (a.flash_total - a.flash_free))
         break
     }
     return arr
@@ -109,8 +109,8 @@ const getHeapUsage = (device: DeviceStatus) => {
 }
 
 const getFlashUsage = (device: DeviceStatus) => {
-  if (!device.flash_size) return 0
-  return Math.round(((device.flash_size - device.flash_free) / device.flash_size) * 100)
+  if (!device.flash_total) return 0
+  return Math.round(((device.flash_total - device.flash_free) / device.flash_total) * 100)
 }
 
 // 进度条颜色
@@ -352,11 +352,11 @@ onBeforeUnmount(() => {
             <div class="memory-detail">
               <div class="detail-row">
                 <span class="detail-label">总量</span>
-                <span class="detail-value">{{ formatBytes(device.flash_size) }}</span>
+                <span class="detail-value">{{ formatBytes(device.flash_total) }}</span>
               </div>
               <div class="detail-row">
                 <span class="detail-label">已用</span>
-                <span class="detail-value used">{{ formatBytes(device.flash_size - device.flash_free) }}</span>
+                <span class="detail-value used">{{ formatBytes(device.flash_total - device.flash_free) }}</span>
               </div>
               <div class="detail-row">
                 <span class="detail-label">空闲</span>
@@ -387,7 +387,7 @@ onBeforeUnmount(() => {
               </div>
               <div class="spec-item">
                 <span class="spec-label">Flash</span>
-                <span class="spec-value">{{ formatBytes(device.flash_size) }}</span>
+                <span class="spec-value">{{ formatBytes(device.flash_total) }}</span>
               </div>
               <div class="spec-item">
                 <span class="spec-label">网络</span>
