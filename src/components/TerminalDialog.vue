@@ -3,6 +3,7 @@
       v-model="visible"
       title="设备终端"
       width="800px"
+      class="terminal-dialog"
       :teleported="false"
       :fullscreen="isTerminalFullscreen"
       :before-close="handleTerminalDialogClose"
@@ -312,10 +313,10 @@ onUnmounted(() => {
   gap: 10px;
 }
 .terminal-controls .device-info {
-  display: flex; gap: 16px; font-size: 14px; color: #ffffff; font-weight: 500;
+  display: flex; gap: 16px; font-size: 14px; font-weight: 500;
+  /* 颜色由下方非 scoped 主题样式统一控制 */
 }
 .terminal-controls .device-info strong {
-  color: #8899aa;
   margin-right: 4px;
 }
 .control-buttons { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -419,5 +420,68 @@ onUnmounted(() => {
   padding: 6px 14px;
   font-size: 13px;
   font-weight: 600;
+}
+</style>
+
+<!-- 设备终端主题自适应样式（全局样式，覆盖 scoped 中的硬编码暗色值） -->
+<style>
+/* ===== 暗夜模式：白色文字 + 深色背景 ===== */
+html.dark .terminal-controls .device-info {
+  color: #ffffff;
+}
+html.dark .terminal-controls .device-info strong {
+  color: #8899aa;
+}
+
+/* ===== 蓝绿/亮色模式：深色文字 + 亮色背景 ===== */
+html:not(.dark) .terminal-dialog {
+  background: #ffffff !important;
+}
+html:not(.dark) .terminal-dialog .el-dialog__header {
+  background: #ffffff !important;
+  border-bottom: 1px solid #ebeef5 !important;
+}
+html:not(.dark) .terminal-dialog .el-dialog__title {
+  color: #303133 !important;
+}
+html:not(.dark) .terminal-dialog .el-dialog__headerbtn .el-dialog__close {
+  color: #909399 !important;
+}
+html:not(.dark) .terminal-dialog .el-dialog__headerbtn:hover .el-dialog__close {
+  color: #303133 !important;
+}
+html:not(.dark) .terminal-dialog .el-dialog__body {
+  background: #ffffff !important;
+  color: #606266 !important;
+}
+
+html:not(.dark) .terminal-controls .device-info {
+  color: #1f2937;
+}
+html:not(.dark) .terminal-controls .device-info strong {
+  color: #6b7280;
+}
+
+html:not(.dark) .terminal-controls {
+  border-bottom-color: #ebeef5;
+}
+
+/* 亮色模式下终端输出区域保持暗色（代码风格） */
+html:not(.dark) .terminal-output {
+  background: #0a0e14;
+  color: #d4d4d4;
+  border-color: #dcdfe6;
+}
+
+/* 亮色模式下输入框保持暗色终端风格 */
+html:not(.dark) .terminal-dialog .el-input__wrapper {
+  background: #f5f7fa !important;
+  border-color: #dcdfe6 !important;
+}
+html:not(.dark) .terminal-dialog .el-input__inner {
+  color: #303133 !important;
+}
+html:not(.dark) .terminal-dialog .el-input__inner::placeholder {
+  color: #c0c4cc !important;
 }
 </style>

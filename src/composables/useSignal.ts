@@ -8,7 +8,7 @@ export interface SignalLevel {
 }
 
 export function getSignalLevel(rssi: number): SignalLevel {
-  if (rssi >= -30) return { level: '超近极值信号', description: '距离路由器极近，几乎贴天线，极少出现，信号顶格溢出', bars: 6, color: '#FF1744' }
+  if (rssi >= -20) return { level: '超近极值信号', description: '距离路由器极近，几乎贴天线，极少出现，信号顶格溢出', bars: 6, color: '#FF1744' }
   if (rssi >= -50) return { level: '极强（满格顶配）', description: '信号质量顶级，网速拉满、延迟极低', bars: 5, color: '#00C853' }
   if (rssi >= -67) return { level: '良好', description: '日常最优区间，游戏、高清视频稳定流畅', bars: 4, color: '#64DD17' }
   if (rssi >= -70) return { level: '临界合格', description: '基础上网够用，高带宽业务偶有波动', bars: 3, color: '#FFD600' }

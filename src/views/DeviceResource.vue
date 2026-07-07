@@ -284,7 +284,7 @@ onBeforeUnmount(() => {
         <div class="stat-card flash-card">
           <div class="stat-card-icon">💾</div>
           <div class="stat-card-body">
-            <div class="stat-card-value">{{ formatBytes(device.flash_size) }}</div>
+            <div class="stat-card-value">{{ formatBytes(device.flash_total) }}</div>
             <div class="stat-card-label">Flash 总容量</div>
           </div>
         </div>
