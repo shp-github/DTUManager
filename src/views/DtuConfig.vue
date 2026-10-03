@@ -3,7 +3,7 @@
     <!-- 固定头部 -->
     <div class="header-wrapper">
       <div class="header">
-        <h2 class="title">DTU 配置 - {{ device?.name }} ————{{ device?.id }}</h2>
+        <h2 class="title">DTU 配置 - {{ device?.name }} 设备ID：{{ device?.id }}</h2>
         <div class="actions">
 
           <button class="lumina-btn" @click="goBack">
@@ -55,6 +55,35 @@
           <el-tab-pane label="场景配置" name="scene">
           </el-tab-pane>
         </el-tabs>
+
+        <!-- 各配置模块数量统计 -->
+        <div class="config-stats">
+          <div class="stat-item" @click="activeTab = 'basic'">
+            <span class="stat-dot dot-basic"></span>
+            <span class="stat-label">基本信息</span>
+            <span class="stat-value">{{ configStats.basicFields }} 项</span>
+          </div>
+          <div class="stat-item" @click="activeTab = 'interface'">
+            <span class="stat-dot dot-interface"></span>
+            <span class="stat-label">接口</span>
+            <span class="stat-value">{{ configStats.uartEnabled }}/2 串口</span>
+          </div>
+          <div class="stat-item" @click="activeTab = 'networkChannels'">
+            <span class="stat-dot dot-channel"></span>
+            <span class="stat-label">网络通道</span>
+            <span class="stat-value">{{ configStats.channelEnabled }}/{{ configStats.channelTotal }} 启用</span>
+          </div>
+          <div class="stat-item" @click="activeTab = 'modbus'">
+            <span class="stat-dot dot-modbus"></span>
+            <span class="stat-label">Modbus</span>
+            <span class="stat-value">{{ configStats.templateCount }} 模板 · {{ configStats.commandCount }} 指令</span>
+          </div>
+          <div class="stat-item" @click="activeTab = 'scene'">
+            <span class="stat-dot dot-scene"></span>
+            <span class="stat-label">场景配置</span>
+            <span class="stat-value">{{ configStats.sceneCount }} 个场景</span>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -99,7 +128,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, nextTick, onMounted, onBeforeUnmount, h, defineComponent } from 'vue'
+import { ref, reactive, computed, nextTick, onMounted, onBeforeUnmount, h, defineComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElSelect, ElOption } from 'element-plus'
 import { ArrowLeft, DocumentAdd, View, DocumentCopy, Download, Upload } from '@element-plus/icons-vue'
@@ -177,6 +206,47 @@ const allConfig = reactive({
   modbus: {},
   scene: {},
   network:{},
+})
+
+// ================== 各配置模块数量统计 ==================
+const configStats = computed(() => {
+  // 基本信息：有效字段数（排除 flag/type 协议字段）
+  const basic: any = allConfig.basic || {}
+  const basicFields = Object.keys(basic).filter(k => k !== 'flag' && k !== 'type').length
+
+  // 接口：已启用串口数
+  const iface: any = allConfig.interface || {}
+  const uartEnabled = ['uart1', 'uart2'].filter(k => iface[k]?.enabled).length
+
+  // 网络通道：启用数 / 总数
+  const channels: any[] = Array.isArray(allConfig.networkChannels) ? allConfig.networkChannels : []
+  const channelTotal = channels.length
+  const channelEnabled = channels.filter((c: any) => c?.enabled).length
+
+  // Modbus：模板数与指令数（兼容设备上报的扁平 template 格式）
+  const modbus: any = allConfig.modbus || {}
+  let templateCount = 0
+  let commandCount = 0
+  if (Array.isArray(modbus.templates)) {
+    templateCount = modbus.templates.length
+    commandCount = modbus.templates.reduce((sum: number, t: any) => sum + (t?.commands?.length || 0), 0)
+  } else if (Array.isArray(modbus.template)) {
+    commandCount = modbus.template.length
+    templateCount = commandCount > 0 ? 1 : 0
+  }
+
+  // 场景：兼容数组 / 单个场景对象 / { scenes: [...] } 三种结构
+  const scene: any = allConfig.scene
+  let sceneCount = 0
+  if (Array.isArray(scene)) {
+    sceneCount = scene.length
+  } else if (Array.isArray(scene?.scenes)) {
+    sceneCount = scene.scenes.length
+  } else if (scene && (scene.id || scene.conditions)) {
+    sceneCount = 1
+  }
+
+  return { basicFields, uartEnabled, channelTotal, channelEnabled, templateCount, commandCount, sceneCount }
 })
 
 // 选择网卡IP（多个IP时弹框让用户选择，只有一个则自动使用）
@@ -698,6 +768,53 @@ const saveConfig = async () => {
   color: #606266;
 }
 
+/* 各配置模块数量统计条 */
+.config-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px 12px;
+}
+
+.config-stats .stat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.config-stats .stat-item:hover {
+  transform: translateY(-1px);
+}
+
+.config-stats .stat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-basic { background: #409eff; }
+.dot-interface { background: #67c23a; }
+.dot-channel { background: #e6a23c; }
+.dot-modbus { background: #8b5cf6; }
+.dot-scene { background: #f56c6c; }
+
+.config-stats .stat-label {
+  font-size: 13px;
+}
+
+.config-stats .stat-value {
+  font-size: 13px;
+  font-weight: 600;
+}
+
 </style>
 
 <!-- 暗夜模式适配 -->
@@ -721,6 +838,39 @@ html.dark .title {
 
 html.dark .arrow {
   color: #a0aec0;
+}
+
+/* ===== 各配置模块数量统计条（主题自适应） ===== */
+html:not(.dark) .config-stats .stat-item {
+  background: #f7f9fc;
+  border-color: #e4e7ed;
+}
+html:not(.dark) .config-stats .stat-item:hover {
+  background: #ecf5ff;
+  border-color: #409eff;
+  box-shadow: 0 2px 8px rgba(64,158,255,0.15);
+}
+html:not(.dark) .config-stats .stat-label {
+  color: #909399;
+}
+html:not(.dark) .config-stats .stat-value {
+  color: #303133;
+}
+
+html.dark .config-stats .stat-item {
+  background: #23272e;
+  border-color: #333;
+}
+html.dark .config-stats .stat-item:hover {
+  background: #2b3a4a;
+  border-color: #58a6ff;
+  box-shadow: 0 2px 8px rgba(88,166,255,0.2);
+}
+html.dark .config-stats .stat-label {
+  color: #94a3b8;
+}
+html.dark .config-stats .stat-value {
+  color: #e0e0e0;
 }
 
 html.dark .tabs-underline .el-tabs__header {

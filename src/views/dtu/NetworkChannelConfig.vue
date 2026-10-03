@@ -331,6 +331,18 @@ onUnmounted(() => {
   margin-bottom: 20px;
 }
 
+.header .el-button-group {
+  margin-left: 20px;
+  display: inline-flex;
+  gap: 8px;
+}
+
+/* 组内按钮独立显示，恢复各自圆角与间距 */
+.header .el-button-group :deep(.el-button) {
+  margin-left: 0 !important;
+  border-radius: 4px !important;
+}
+
 .el-button.is-active {
   background-color: #409eff;
   color: white;
